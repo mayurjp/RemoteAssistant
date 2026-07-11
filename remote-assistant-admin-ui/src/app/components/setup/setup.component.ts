@@ -17,8 +17,7 @@ export class SetupComponent implements OnInit {
     hasGoogleClientSecret: false,
     hasGoogleRefreshToken: false,
     hasTelegramBotToken: false,
-    googleAdminEmail: null,
-    googleClientId: null
+    googleAdminEmail: null
   };
 
   telegramToken: string = '';

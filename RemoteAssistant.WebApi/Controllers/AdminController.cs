@@ -53,8 +53,7 @@ public class AdminController : ControllerBase
             HasGoogleClientSecret = !string.IsNullOrEmpty(clientSecret),
             HasGoogleRefreshToken = !string.IsNullOrEmpty(refreshToken),
             HasTelegramBotToken = !string.IsNullOrEmpty(botToken),
-            GoogleAdminEmail = adminEmail,
-            GoogleClientId = clientId
+            GoogleAdminEmail = adminEmail
         });
     }
 
@@ -102,7 +101,7 @@ public class AdminController : ControllerBase
                       $"?client_id={Uri.EscapeDataString(clientId)}" +
                       $"&redirect_uri={Uri.EscapeDataString(callbackUrl)}" +
                       $"&response_type=code" +
-                      $"&scope={Uri.EscapeDataString("openid email profile https://www.googleapis.com/auth/gmail.send")}" +
+                      $"&scope={Uri.EscapeDataString("openid email profile")}" +
                       $"&access_type=offline" +
                       $"&prompt=consent";
 
@@ -167,7 +166,7 @@ public class AdminController : ControllerBase
             await SaveSettingAsync("GoogleAdminEmail", email);
         }
 
-        var jwtKey = _configuration["Jwt:Key"] ?? "RemoteAssistant-SuperSecret-Key-2024-MinLength32Chars!";
+        var jwtKey = _configuration["Jwt:Key"]!;
         var jwtIssuer = _configuration["Jwt:Issuer"] ?? "RemoteAssistant";
         var jwtAudience = _configuration["Jwt:Audience"] ?? "RemoteAssistant-AdminUI";
 

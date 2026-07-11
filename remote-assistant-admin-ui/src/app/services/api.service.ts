@@ -9,7 +9,6 @@ export interface ConfigStatus {
   hasGoogleRefreshToken: boolean;
   hasTelegramBotToken: boolean;
   googleAdminEmail: string | null;
-  googleClientId: string | null;
 }
 
 export interface User {

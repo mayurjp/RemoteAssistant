@@ -1,6 +1,6 @@
 # RemoteAssistant
 
-A multi-project .NET 10 and Angular 18 application for job scheduling and remote system assistance, with Telegram bot user registration and Gmail OAuth-based email sending.
+A multi-project .NET 10 and Angular 18 application with Google OAuth admin login and Telegram bot user registration.
 
 ---
 
@@ -19,9 +19,9 @@ sequenceDiagram
     Admin->>Angular: Open Admin Portal → /login
     Admin->>Angular: Click "Sign in with Google"
     Angular->>WebApi: GET /api/admin/auth/google-login
-    WebApi->>Angular: 302 Redirect to Google (login + gmail.send scopes)
+    WebApi->>Angular: 302 Redirect to Google (openid email profile)
     Angular->>Google: Follow Redirect
-    Google-->>Admin: Prompt for Consent (sign-in + Gmail access)
+    Google-->>Admin: Prompt for Consent
     Admin->>Google: Approve
     Google-->>WebApi: Redirect to /api/admin/auth/callback?code=xxx
     WebApi->>Google: Exchange Code for Tokens
@@ -36,19 +36,8 @@ sequenceDiagram
     Admin->>Angular: Save Telegram Bot Token
 
     User->>Worker: Send /register <email>
-    Worker->>DB: Insert User (OtpCode, Expiry, IsVerified=false)
-    Worker->>DB: Read Google Refresh Token
-    Worker->>Google: Exchange Refresh Token for Access Token
-    Google-->>Worker: Access Token
-    Worker->>Google: Send OTP Email via Gmail REST API
-    Google-->>User: OTP Email Delivered
-    Worker-->>User: "OTP sent. Reply with /verify <otp>"
-
-    User->>Worker: Send /verify <otp>
-    Worker->>DB: Validate OTP and Expiry
-    DB-->>Worker: Valid OTP
-    Worker->>DB: Update User (IsVerified=true)
-    Worker-->>User: "Registration verified!"
+    Worker->>DB: Insert/Update User (IsVerified=true)
+    Worker-->>User: "Your account has been registered successfully!"
 ```
 
 ---
@@ -59,7 +48,7 @@ sequenceDiagram
 |---------|-------------|
 | `RemoteAssistant.Core` | Shared models and EF Core DbContext |
 | `RemoteAssistant.WebApi` | REST API: auth, config, OAuth callbacks, user listing |
-| `RemoteAssistant.Worker` | Background service: Telegram bot polling + Gmail sender |
+| `RemoteAssistant.Worker` | Background service: Telegram bot polling for user registration |
 | `remote-assistant-admin-ui` | Angular 18 SPA — glassmorphic dark theme |
 
 ---
@@ -103,7 +92,6 @@ sequenceDiagram
 2. Create a project → **APIs & Services > Credentials**
 3. Configure the **OAuth Consent Screen** (External) with scopes:
    - `openid` / `email` / `profile`
-   - `https://www.googleapis.com/auth/gmail.send`
 4. Create **OAuth Client ID** → Web Application
 5. Under **Authorized redirect URIs**, add:
    ```
@@ -162,7 +150,7 @@ Starts on `http://localhost:4200`.
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
-| `GET` | `/api/admin/auth/google-login` | No | Redirect to Google OAuth (sign-in + Gmail scopes) |
+| `GET` | `/api/admin/auth/google-login` | No | Redirect to Google OAuth (openid email profile) |
 | `GET` | `/api/admin/auth/callback` | No | Google OAuth callback — exchanges code, saves refresh token, sets JWT cookie, redirects to dashboard |
 | `GET` | `/api/admin/auth/status` | Yes | Current authenticated user email |
 | `POST` | `/api/admin/auth/logout` | No | Logout (client-side) |
@@ -173,13 +161,11 @@ Starts on `http://localhost:4200`.
 
 ---
 
-## Verification Flow
+## Registration Flow
 
 1. Open Telegram → find your bot → send `/start`
 2. Send `/register your-email@example.com`
-3. Check inbox for `RemoteAssistant Registration OTP`
-4. Reply `/verify <otp-code>` in Telegram
-5. Bot confirms verification — user appears on the Dashboard
+3. Bot confirms registration instantly — user appears on the Dashboard
 
 ---
 
@@ -192,9 +178,9 @@ Google OAuth is the single entry point. Sign-in handles both identity verificati
 **Flow:**
 1. User clicks "Sign in with Google" on `/login`
 2. Angular calls `GET /api/admin/auth/google-login`
-3. Server responds with 302 redirect to Google (scopes: `openid email profile gmail.send`)
+3. Server responds with 302 redirect to Google (scopes: `openid email profile`)
 4. User consents — Google redirects to `GET /api/admin/auth/callback?code=xxx`
-5. Server exchanges code for tokens, saves refresh token + admin email to DB
+5. Server exchanges code for tokens, saves admin email to DB
 6. Server issues a JWT, sets it as a non-httpOnly cookie (`auth_token`)
 7. Server redirects to `/dashboard`
 8. Angular `AuthService` reads cookie on init, stores JWT in `localStorage`, clears cookie

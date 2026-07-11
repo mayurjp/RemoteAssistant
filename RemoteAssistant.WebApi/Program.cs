@@ -25,7 +25,14 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddHttpClient();
 
-var jwtKey = builder.Configuration["Jwt:Key"] ?? "RemoteAssistant-SuperSecret-Key-2024-MinLength32Chars!";
+var jwtKey = builder.Configuration["Jwt:Key"];
+if (string.IsNullOrEmpty(jwtKey))
+{
+    jwtKey = Convert.ToBase64String(Guid.NewGuid().ToByteArray()) + Convert.ToBase64String(Guid.NewGuid().ToByteArray());
+    builder.Configuration["Jwt:Key"] = jwtKey;
+    Console.WriteLine("WARNING: Jwt:Key not configured. Generated random key for this session.");
+    Console.WriteLine("Set 'Jwt:Key' in appsettings.json for persistent keys across restarts.");
+}
 var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "RemoteAssistant";
 var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "RemoteAssistant-AdminUI";
 

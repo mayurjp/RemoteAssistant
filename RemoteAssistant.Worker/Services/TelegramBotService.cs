@@ -39,7 +39,6 @@ public class TelegramBotService : BackgroundService
             {
                 string? dbToken = null;
 
-                // Resolve DB context in a transient/scoped way
                 using (var scope = _serviceProvider.CreateScope())
                 {
                     var context = scope.ServiceProvider.GetRequiredService<SchedulerDbContext>();
@@ -63,7 +62,7 @@ public class TelegramBotService : BackgroundService
 
                     var receiverOptions = new ReceiverOptions
                     {
-                        AllowedUpdates = Array.Empty<UpdateType>() // receive all update types
+                        AllowedUpdates = Array.Empty<UpdateType>()
                     };
 
                     _botClient.StartReceiving(
@@ -82,7 +81,6 @@ public class TelegramBotService : BackgroundService
                 _logger.LogError(ex, "Error occurred while checking Telegram Bot configuration or starting the bot.");
             }
 
-            // Check config again every 15 seconds
             await Task.Delay(TimeSpan.FromSeconds(15), stoppingToken);
         }
 
@@ -122,7 +120,7 @@ public class TelegramBotService : BackgroundService
                 case "/help":
                     await botClient.SendTextMessageAsync(
                         chatId: message.Chat.Id,
-                        text: "Welcome to RemoteAssistant Bot!\n\nTo onboard and register your account, use:\n`/register your-email@example.com`\n\nAfter receiving the OTP email, verify your code using:\n`/verify 123456`",
+                        text: "Welcome to RemoteAssistant Bot!\n\nTo register, use:\n`/register your-email@example.com`",
                         parseMode: ParseMode.Markdown,
                         cancellationToken: cancellationToken
                     );
@@ -132,14 +130,11 @@ public class TelegramBotService : BackgroundService
                     await HandleRegisterCommandAsync(botClient, message, parts, cancellationToken);
                     break;
 
-                case "/verify":
-                    await HandleVerifyCommandAsync(botClient, message, parts, cancellationToken);
-                    break;
-
                 default:
                     await botClient.SendTextMessageAsync(
                         chatId: message.Chat.Id,
-                        text: "Unknown command. Use /register <email> or /verify <otp> or /help.",
+                        text: "Unknown command. Use `/register <email>` or `/help`.",
+                        parseMode: ParseMode.Markdown,
                         cancellationToken: cancellationToken
                     );
                     break;
@@ -155,19 +150,25 @@ public class TelegramBotService : BackgroundService
     {
         if (parts.Length < 2)
         {
-            await botClient.SendTextMessageAsync(message.Chat.Id, "Usage: `/register your-email@example.com`", parseMode: ParseMode.Markdown, cancellationToken: cancellationToken);
+            await botClient.SendTextMessageAsync(
+                message.Chat.Id,
+                "Usage: `/register your-email@example.com`",
+                parseMode: ParseMode.Markdown,
+                cancellationToken: cancellationToken
+            );
             return;
         }
 
         var email = parts[1].Trim();
         if (!email.Contains("@") || !email.Contains("."))
         {
-            await botClient.SendTextMessageAsync(message.Chat.Id, "Please enter a valid email address.", cancellationToken: cancellationToken);
+            await botClient.SendTextMessageAsync(
+                message.Chat.Id,
+                "Please enter a valid email address.",
+                cancellationToken: cancellationToken
+            );
             return;
         }
-
-        // Generate 6-digit OTP
-        var otp = Random.Shared.Next(100000, 999999).ToString();
 
         using (var scope = _serviceProvider.CreateScope())
         {
@@ -180,98 +181,30 @@ public class TelegramBotService : BackgroundService
                 {
                     TelegramId = message.Chat.Id,
                     Email = email,
-                    IsVerified = false,
-                    OtpCode = otp,
-                    OtpExpiry = DateTime.UtcNow.AddMinutes(5),
-                    CreatedAt = DateTime.UtcNow
+                    IsVerified = true,
+                    CreatedAt = DateTime.UtcNow,
+                    VerifiedAt = DateTime.UtcNow
                 };
                 context.Users.Add(user);
             }
             else
             {
                 user.Email = email;
-                user.IsVerified = false; // reset status for re-verification
-                user.OtpCode = otp;
-                user.OtpExpiry = DateTime.UtcNow.AddMinutes(5);
+                user.IsVerified = true;
+                user.VerifiedAt = DateTime.UtcNow;
                 context.Users.Update(user);
             }
 
             await context.SaveChangesAsync(cancellationToken);
 
-            var mailSender = scope.ServiceProvider.GetRequiredService<GmailSenderService>();
-            var emailSent = await mailSender.SendOtpEmailAsync(email, otp);
-
-            if (emailSent)
-            {
-                await botClient.SendTextMessageAsync(
-                    chatId: message.Chat.Id,
-                    text: $"An OTP code has been sent to `{email}`. Please check your inbox and verify it using:\n`/verify YOUR_OTP`",
-                    parseMode: ParseMode.Markdown,
-                    cancellationToken: cancellationToken
-                );
-            }
-            else
-            {
-                await botClient.SendTextMessageAsync(
-                    chatId: message.Chat.Id,
-                    text: "⚠️ Failed to send OTP email. Please ensure that the Administrator has completed the Gmail authentication setup in the Admin Portal.",
-                    cancellationToken: cancellationToken
-                );
-            }
-        }
-    }
-
-    private async Task HandleVerifyCommandAsync(ITelegramBotClient botClient, Message message, string[] parts, CancellationToken cancellationToken)
-    {
-        if (parts.Length < 2)
-        {
-            await botClient.SendTextMessageAsync(message.Chat.Id, "Usage: `/verify YOUR_OTP`", parseMode: ParseMode.Markdown, cancellationToken: cancellationToken);
-            return;
-        }
-
-        var otp = parts[1].Trim();
-
-        using (var scope = _serviceProvider.CreateScope())
-        {
-            var context = scope.ServiceProvider.GetRequiredService<SchedulerDbContext>();
-            var user = await context.Users.FirstOrDefaultAsync(u => u.TelegramId == message.Chat.Id, cancellationToken);
-
-            if (user == null)
-            {
-                await botClient.SendTextMessageAsync(message.Chat.Id, "You have not registered yet. Please use `/register <email>` first.", parseMode: ParseMode.Markdown, cancellationToken: cancellationToken);
-                return;
-            }
-
-            if (user.IsVerified)
-            {
-                await botClient.SendTextMessageAsync(message.Chat.Id, "You are already verified!", cancellationToken: cancellationToken);
-                return;
-            }
-
-            if (user.OtpCode != otp)
-            {
-                await botClient.SendTextMessageAsync(message.Chat.Id, "Invalid OTP code. Please try again.", cancellationToken: cancellationToken);
-                return;
-            }
-
-            if (user.OtpExpiry < DateTime.UtcNow)
-            {
-                await botClient.SendTextMessageAsync(message.Chat.Id, "Your OTP code has expired. Please run `/register <email>` again to get a new code.", parseMode: ParseMode.Markdown, cancellationToken: cancellationToken);
-                return;
-            }
-
-            // Mark user as verified
-            user.IsVerified = true;
-            user.OtpCode = null;
-            user.OtpExpiry = null;
-            user.VerifiedAt = DateTime.UtcNow;
-            context.Users.Update(user);
-
-            await context.SaveChangesAsync(cancellationToken);
+            var existingUser = user.IsVerified && user.VerifiedAt != user.CreatedAt
+                ? "updated"
+                : "registered";
 
             await botClient.SendTextMessageAsync(
                 chatId: message.Chat.Id,
-                text: "✅ Congratulations! Your registration has been verified successfully.",
+                text: $"✅ Your account has been {existingUser} successfully with email `{email}`.",
+                parseMode: ParseMode.Markdown,
                 cancellationToken: cancellationToken
             );
         }

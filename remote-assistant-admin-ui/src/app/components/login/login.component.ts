@@ -234,7 +234,7 @@ export class LoginComponent implements OnInit {
   ngOnInit() {
     this.apiService.getConfigStatus().subscribe({
       next: (status) => {
-        this.credentialsConfigured = !!(status.googleClientId || status.hasGoogleClientId);
+        this.credentialsConfigured = !!status.hasGoogleClientId;
       },
       error: () => {
         this.credentialsConfigured = false;
