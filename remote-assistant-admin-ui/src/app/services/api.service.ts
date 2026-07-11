@@ -26,7 +26,7 @@ export interface User {
   providedIn: 'root'
 })
 export class ApiService {
-  private baseUrl = environment.apiBaseUrl;
+  baseUrl = environment.apiBaseUrl;
 
   constructor(private http: HttpClient) {}
 
@@ -40,10 +40,6 @@ export class ApiService {
 
   saveGoogleCredentials(clientId: string, clientSecret: string): Observable<any> {
     return this.http.post<any>(`${this.baseUrl}/config/google`, { clientId, clientSecret });
-  }
-
-  processOAuthCallback(code: string): Observable<any> {
-    return this.http.post<any>(`${this.baseUrl}/oauth/callback`, { code, redirectUri: environment.oauthRedirectUri });
   }
 
   getUsers(): Observable<User[]> {

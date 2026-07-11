@@ -3,7 +3,6 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { ApiService } from '../../services/api.service';
-import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-login',
@@ -227,13 +226,20 @@ export class LoginComponent implements OnInit {
   successMsg = '';
   credentialsConfigured = false;
 
-  googleClientId = environment.googleClientId;
-  googleClientSecret = environment.googleClientSecret;
+  googleClientId = '';
+  googleClientSecret = '';
 
   constructor(private apiService: ApiService) {}
 
   ngOnInit() {
-    this.credentialsConfigured = !!environment.googleClientId;
+    this.apiService.getConfigStatus().subscribe({
+      next: (status) => {
+        this.credentialsConfigured = !!(status.googleClientId || status.hasGoogleClientId);
+      },
+      error: () => {
+        this.credentialsConfigured = false;
+      }
+    });
   }
 
   saveCredentials() {
@@ -260,22 +266,6 @@ export class LoginComponent implements OnInit {
   }
 
   startLogin() {
-    const clientId = this.googleClientId || environment.googleClientId;
-    if (!clientId) {
-      this.error = 'Google Client ID is not configured in the environment file.';
-      return;
-    }
-
-    const googleAuthUrl = 'https://accounts.google.com/o/oauth2/v2/auth';
-    const params = new URLSearchParams({
-      client_id: clientId,
-      redirect_uri: environment.loginRedirectUri,
-      response_type: 'code',
-      scope: 'openid email profile',
-      access_type: 'offline',
-      prompt: 'consent'
-    });
-
-    window.location.href = `${googleAuthUrl}?${params.toString()}`;
+    window.location.href = `${this.apiService.baseUrl}/auth/google-login`;
   }
 }

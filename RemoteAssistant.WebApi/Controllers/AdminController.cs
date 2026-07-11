@@ -85,67 +85,50 @@ public class AdminController : ControllerBase
     }
 
     [AllowAnonymous]
-    [HttpPost("oauth/callback")]
-    public async Task<IActionResult> ProcessOAuthCallback([FromBody] OAuthCallbackRequest request)
+    [HttpGet("auth/google-login")]
+    public async Task<IActionResult> GoogleLogin([FromQuery] string mode = "login")
     {
-        if (string.IsNullOrWhiteSpace(request.Code))
-        {
-            return BadRequest("Authorization code is required.");
-        }
-
         var settings = await _context.SystemSettings.ToListAsync();
         var clientId = settings.FirstOrDefault(s => s.Key == "GoogleClientId")?.Value 
                        ?? _configuration["Google:ClientId"];
-        var clientSecret = settings.FirstOrDefault(s => s.Key == "GoogleClientSecret")?.Value 
-                            ?? _configuration["Google:ClientSecret"];
 
-        if (string.IsNullOrEmpty(clientId) || string.IsNullOrEmpty(clientSecret))
+        if (string.IsNullOrEmpty(clientId))
         {
-            return BadRequest("Google Client ID and Client Secret are not configured yet (neither in database nor in appsettings.json).");
+            return BadRequest("Google OAuth credentials are not configured.");
         }
 
-        var redirectUri = request.RedirectUri ?? "http://localhost:4200/oauth-callback";
-        var (success, error, idToken, refreshToken, email) = await ExchangeGoogleCodeAsync(
-            request.Code, clientId, clientSecret, redirectUri);
+        var callbackUrl = $"{Request.Scheme}://{Request.Host}/api/admin/auth/callback";
+        var scopes = mode == "gmail" 
+            ? "openid email https://www.googleapis.com/auth/gmail.send" 
+            : "openid email profile";
+        var accessType = mode == "gmail" ? "offline" : "offline";
 
-        if (!success)
-        {
-            return BadRequest(error);
-        }
+        var authUrl = $"https://accounts.google.com/o/oauth2/v2/auth" +
+                      $"?client_id={Uri.EscapeDataString(clientId)}" +
+                      $"&redirect_uri={Uri.EscapeDataString(callbackUrl)}" +
+                      $"&response_type=code" +
+                      $"&scope={Uri.EscapeDataString(scopes)}" +
+                      $"&access_type={accessType}" +
+                      $"&prompt=consent" +
+                      $"&state={Uri.EscapeDataString(mode)}";
 
-        if (!string.IsNullOrEmpty(refreshToken))
-        {
-            await SaveSettingAsync("GoogleRefreshToken", refreshToken);
-        }
-        else
-        {
-            var existingRefreshToken = await _context.SystemSettings.FirstOrDefaultAsync(s => s.Key == "GoogleRefreshToken");
-            if (existingRefreshToken == null || string.IsNullOrEmpty(existingRefreshToken.Value))
-            {
-                return BadRequest("OAuth consented, but Google did not return a refresh token. " +
-                                  "Ensure offline access is requested and try revoking permissions/logging in again.");
-            }
-        }
-
-        if (!string.IsNullOrEmpty(email))
-        {
-            await SaveSettingAsync("GoogleAdminEmail", email);
-        }
-
-        return Ok(new
-        {
-            Message = "Authentication and Gmail authorization completed successfully.",
-            Email = email
-        });
+        return Redirect(authUrl);
     }
 
     [AllowAnonymous]
-    [HttpPost("auth/login")]
-    public async Task<IActionResult> Login([FromBody] LoginRequest request)
+    [HttpGet("auth/callback")]
+    public async Task<IActionResult> GoogleCallback([FromQuery] string code, [FromQuery] string state, [FromQuery] string? error)
     {
-        if (string.IsNullOrWhiteSpace(request.Code))
+        var frontendBase = _configuration["Frontend:BaseUrl"] ?? "http://localhost:4200";
+
+        if (!string.IsNullOrEmpty(error))
         {
-            return BadRequest("Authorization code is required.");
+            return Redirect($"{frontendBase}/login?error={Uri.EscapeDataString(error)}");
+        }
+
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            return Redirect($"{frontendBase}/login?error=no_code");
         }
 
         var settings = await _context.SystemSettings.ToListAsync();
@@ -156,27 +139,51 @@ public class AdminController : ControllerBase
 
         if (string.IsNullOrEmpty(clientId) || string.IsNullOrEmpty(clientSecret))
         {
-            return BadRequest("Google OAuth credentials are not configured. Please configure them first.");
+            return Redirect($"{frontendBase}/login?error=not_configured");
         }
 
-        var redirectUri = request.RedirectUri ?? "http://localhost:4200/login-callback";
-        var (success, error, idToken, _, email) = await ExchangeGoogleCodeAsync(
-            request.Code, clientId, clientSecret, redirectUri);
+        var callbackUrl = $"{Request.Scheme}://{Request.Host}/api/admin/auth/callback";
+        var (success, tokenError, idToken, refreshToken, email) = await ExchangeGoogleCodeAsync(
+            code, clientId, clientSecret, callbackUrl);
 
         if (!success)
         {
-            return BadRequest($"Login failed: {error}");
+            _logger.LogError("Google callback failed: {Error}", tokenError);
+            return Redirect($"{frontendBase}/login?error={Uri.EscapeDataString(tokenError ?? "exchange_failed")}");
+        }
+
+        if (state == "gmail")
+        {
+            if (!string.IsNullOrEmpty(refreshToken))
+            {
+                await SaveSettingAsync("GoogleRefreshToken", refreshToken);
+            }
+            else
+            {
+                var existing = await _context.SystemSettings.FirstOrDefaultAsync(s => s.Key == "GoogleRefreshToken");
+                if (existing == null || string.IsNullOrEmpty(existing.Value))
+                {
+                    return Redirect($"{frontendBase}/setup?gmail=error&reason=no_refresh_token");
+                }
+            }
+
+            if (!string.IsNullOrEmpty(email))
+            {
+                await SaveSettingAsync("GoogleAdminEmail", email);
+            }
+
+            return Redirect($"{frontendBase}/setup?gmail=success");
         }
 
         if (string.IsNullOrEmpty(email))
         {
-            return BadRequest("Could not retrieve email from Google identity token.");
+            return Redirect($"{frontendBase}/login?error=no_email");
         }
 
         var allowedEmail = _configuration["Admin:AllowedEmail"];
         if (!string.IsNullOrEmpty(allowedEmail) && !email.Equals(allowedEmail, StringComparison.OrdinalIgnoreCase))
         {
-            return Unauthorized($"Access denied. Only {allowedEmail} is allowed to administer this system.");
+            return Redirect($"{frontendBase}/login?error=access_denied");
         }
 
         var jwtKey = _configuration["Jwt:Key"] ?? "RemoteAssistant-SuperSecret-Key-2024-MinLength32Chars!";
@@ -201,12 +208,24 @@ public class AdminController : ControllerBase
             signingCredentials: creds
         );
 
-        return Ok(new
+        var jwt = new JwtSecurityTokenHandler().WriteToken(token);
+
+        Response.Cookies.Append("auth_token", jwt, new CookieOptions
         {
-            Token = new JwtSecurityTokenHandler().WriteToken(token),
-            Email = email,
-            ExpiresAt = token.ValidTo
+            HttpOnly = false,
+            Secure = false,
+            SameSite = SameSiteMode.Lax,
+            Expires = DateTimeOffset.UtcNow.AddHours(8)
         });
+        Response.Cookies.Append("auth_email", email, new CookieOptions
+        {
+            HttpOnly = false,
+            Secure = false,
+            SameSite = SameSiteMode.Lax,
+            Expires = DateTimeOffset.UtcNow.AddHours(8)
+        });
+
+        return Redirect($"{frontendBase}/dashboard");
     }
 
     [HttpGet("auth/status")]
@@ -346,14 +365,4 @@ public class GoogleCredentialsRequest
     public string ClientSecret { get; set; } = string.Empty;
 }
 
-public class OAuthCallbackRequest
-{
-    public string Code { get; set; } = string.Empty;
-    public string? RedirectUri { get; set; }
-}
 
-public class LoginRequest
-{
-    public string Code { get; set; } = string.Empty;
-    public string? RedirectUri { get; set; }
-}

@@ -3,7 +3,6 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { ApiService, ConfigStatus } from '../../services/api.service';
-import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-setup',
@@ -23,8 +22,8 @@ export class SetupComponent implements OnInit {
   };
 
   telegramToken: string = '';
-  googleClientId: string = environment.googleClientId;
-  googleClientSecret: string = environment.googleClientSecret;
+  googleClientId: string = '';
+  googleClientSecret: string = '';
 
   telegramMessage: string = '';
   telegramError: boolean = false;
@@ -92,23 +91,6 @@ export class SetupComponent implements OnInit {
   }
 
   startOAuthRedirect() {
-    const clientId = this.googleClientId.trim() || this.status.googleClientId || environment.googleClientId;
-    if (!clientId) {
-      this.googleMessage = 'Google Client ID is not configured. Check the environment file.';
-      this.googleError = true;
-      return;
-    }
-
-    const googleAuthUrl = 'https://accounts.google.com/o/oauth2/v2/auth';
-    const params = new URLSearchParams({
-      client_id: clientId,
-      redirect_uri: environment.oauthRedirectUri,
-      response_type: 'code',
-      scope: 'openid email https://www.googleapis.com/auth/gmail.send',
-      access_type: 'offline',
-      prompt: 'consent'
-    });
-
-    window.location.href = `${googleAuthUrl}?${params.toString()}`;
+    window.location.href = `${this.apiService.baseUrl}/auth/google-login?mode=gmail`;
   }
 }

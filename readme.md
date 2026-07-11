@@ -16,35 +16,35 @@ sequenceDiagram
     participant DB as SQL Server Express
     participant Google as Google OAuth / Gmail API
 
-    Admin->>Angular: Open Admin Portal
-    Angular->>WebApi: GET /api/admin/config (Client ID)
-    WebApi-->>Angular: Client ID
+    Admin->>Angular: Open Admin Portal → /login
     Admin->>Angular: Click "Sign in with Google"
-    Angular->>Google: Redirect to Google (openid email profile)
+    Angular->>WebApi: GET /api/admin/auth/google-login
+    WebApi->>Angular: 302 Redirect to Google (openid email profile)
+    Angular->>Google: Follow Redirect
     Google-->>Admin: Prompt for Consent
     Admin->>Google: Approve
-    Google-->>Angular: Redirect to /login-callback?code=xxx
-    Angular->>WebApi: POST /api/admin/auth/login (code)
+    Google-->>WebApi: Redirect to /api/admin/auth/callback?code=xxx&state=login
     WebApi->>Google: Exchange Code for Tokens
     Google-->>WebApi: ID Token (email)
     WebApi->>WebApi: Validate ID Token, Issue JWT
-    WebApi-->>Angular: JWT + Email
-    Angular-->>Admin: Redirect to Dashboard
+    WebApi->>WebApi: Set JWT as Cookie
+    WebApi-->>Angular: 302 Redirect to /dashboard
+    Angular->>Angular: Read JWT from Cookie → localStorage
 
     Admin->>Angular: Navigate to Setup
     Admin->>Angular: Save Telegram Bot Token
-    Admin->>Angular: Enter Google Client ID & Secret
-    Admin->>Angular: Save Google Credentials
+    Admin->>Angular: Enter Google Client ID & Secret → Save
     Admin->>Angular: Click "Authorize Gmail Account"
-    Angular->>Google: Redirect to Google (gmail.send scope)
+    Angular->>WebApi: GET /api/admin/auth/google-login?mode=gmail
+    WebApi->>Angular: 302 Redirect to Google (gmail.send scope)
+    Angular->>Google: Follow Redirect
     Google-->>Admin: Prompt for Gmail Consent
     Admin->>Google: Approve
-    Google-->>Angular: Redirect to /oauth-callback?code=xxx
-    Angular->>WebApi: POST /api/admin/oauth/callback (code)
+    Google-->>WebApi: Redirect to /api/admin/auth/callback?code=xxx&state=gmail
     WebApi->>Google: Exchange Code for Refresh Token
     Google-->>WebApi: Refresh Token
     WebApi->>DB: Save Refresh Token & Admin Email
-    WebApi-->>Angular: Gmail Authorized
+    WebApi-->>Angular: 302 Redirect to /setup?gmail=success
 
     User->>Worker: Send /register <email>
     Worker->>DB: Insert User (OtpCode, Expiry, IsVerified=false)
@@ -116,9 +116,11 @@ sequenceDiagram
    - `openid` / `email` / `profile` (for login)
    - `https://www.googleapis.com/auth/gmail.send` (for sending OTP emails)
 4. Create **OAuth Client ID** → Web Application
-5. Add **Authorized redirect URIs**:
-   - `http://localhost:4200/login-callback`
-   - `http://localhost:4200/oauth-callback`
+5. Under **Authorized redirect URIs**, add:
+   ```
+   http://localhost:5000/api/admin/auth/callback
+   ```
+   This single URL handles both login and Gmail authorization (distinguished by `state` parameter).
 6. Save to get your **Client ID** and **Client Secret**
 
 ---
@@ -154,13 +156,15 @@ npm run start
 
 ### 4. Configuration Workflow
 
+> **First run**: Configure your Google Client ID and Client Secret in `appsettings.json` (under the `"Google"` section) or via the login page form. Without these, OAuth will not work.
+
 1. Open **`http://localhost:4200`** — you'll be redirected to the **login page**
-2. Click **Sign in with Google** to authenticate with your admin Google account
-3. After login, you're taken to the **Dashboard**
-4. Click **⚙ Settings Panel** → go to the Setup page
-5. Enter your **Telegram Bot Token** and click **Save Bot Token**
-6. Enter your Google **Client ID** and **Client Secret**, click **Save Credentials**
-7. Click **🔑 Authorize Gmail Account** → consent via Google → redirected back
+2. If credentials are not yet configured, enter your **Client ID** and **Client Secret** and click **Save Credentials**
+3. Click **Sign in with Google** — the server redirects you to Google for authentication
+4. After login, you're taken to the **Dashboard**
+5. Click **⚙ Settings Panel** → go to the Setup page
+6. Enter your **Telegram Bot Token** and click **Save Bot Token**
+7. Click **🔑 Authorize Gmail Account** → server redirects to Google for Gmail consent → redirected back
 8. Gmail service shows active status — setup complete
 
 > Optional: Restrict access to a specific Google account by setting `"Admin:AllowedEmail": "admin@example.com"` in `appsettings.json`.
@@ -171,13 +175,13 @@ npm run start
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
-| `POST` | `/api/admin/auth/login` | No | Exchange Google code → JWT |
-| `GET` | `/api/admin/auth/status` | Yes | Current user email |
+| `GET` | `/api/admin/auth/google-login` | No | Redirect to Google OAuth (`?mode=gmail` for Gmail) |
+| `GET` | `/api/admin/auth/callback` | No | Google OAuth callback — exchanges code, sets JWT cookie, redirects to frontend |
+| `GET` | `/api/admin/auth/status` | Yes | Current authenticated user email |
 | `POST` | `/api/admin/auth/logout` | No | Logout (client-side) |
 | `GET` | `/api/admin/config` | No | Configuration status |
 | `POST` | `/api/admin/config/telegram` | Yes | Save Telegram Bot Token |
-| `POST` | `/api/admin/config/google` | Yes | Save Google OAuth credentials |
-| `POST` | `/api/admin/oauth/callback` | No | Gmail OAuth code exchange |
+| `POST` | `/api/admin/config/google` | No | Save Google OAuth credentials |
 | `GET` | `/api/admin/users` | Yes | List registered users |
 
 ---
@@ -197,14 +201,17 @@ npm run start
 ```jsonc
 {
   "Google": {
-    "ClientId": "",     // Optional fallback if not in DB
-    "ClientSecret": ""  // Optional fallback if not in DB
+    "ClientId": "",             // Your Google OAuth Client ID
+    "ClientSecret": ""          // Your Google OAuth Client Secret
+  },
+  "Frontend": {
+    "BaseUrl": "http://localhost:4200"  // Where to redirect after OAuth
   },
   "Admin": {
-    "AllowedEmail": ""  // Optional: restrict login to one email
+    "AllowedEmail": ""          // Optional: restrict login to one email
   },
   "Jwt": {
-    "Key": "",          // Custom signing key (min 32 chars)
+    "Key": "",                  // Custom signing key (min 32 chars)
     "Issuer": "RemoteAssistant",
     "Audience": "RemoteAssistant-AdminUI"
   },

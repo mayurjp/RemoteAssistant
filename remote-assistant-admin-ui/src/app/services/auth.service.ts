@@ -20,7 +20,9 @@ export class AuthService {
   private authSubject = new BehaviorSubject<boolean>(this.hasToken());
   isAuthenticated$ = this.authSubject.asObservable();
 
-  constructor(private http: HttpClient, private router: Router) {}
+  constructor(private http: HttpClient, private router: Router) {
+    this.readCookie();
+  }
 
   getToken(): string | null {
     return localStorage.getItem(this.tokenKey);
@@ -45,18 +47,25 @@ export class AuthService {
     }
   }
 
-  login(code: string, redirectUri: string): Observable<{ token: string; email: string }> {
-    return this.http.post<{ token: string; email: string }>(`${this.baseUrl}/auth/login`, {
-      code,
-      redirectUri
-    }).pipe(
-      tap(response => {
-        localStorage.setItem(this.tokenKey, response.token);
-        localStorage.setItem(this.emailKey, response.email);
-        this.authSubject.next(true);
-        this.router.navigate(['/dashboard']);
-      })
-    );
+  private readCookie(): void {
+    const cookies = document.cookie.split(';');
+    let token = '';
+    let email = '';
+
+    for (const cookie of cookies) {
+      const [name, ...valueParts] = cookie.trim().split('=');
+      const value = decodeURIComponent(valueParts.join('='));
+      if (name === 'auth_token') token = value;
+      if (name === 'auth_email') email = value;
+    }
+
+    if (token) {
+      localStorage.setItem(this.tokenKey, token);
+      localStorage.setItem(this.emailKey, email);
+      document.cookie = 'auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+      document.cookie = 'auth_email=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+      this.authSubject.next(true);
+    }
   }
 
   checkAuthStatus(): Observable<AuthStatus> {
