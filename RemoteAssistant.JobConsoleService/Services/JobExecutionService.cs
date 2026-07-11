@@ -4,7 +4,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using RemoteAssistant.Core.Database;
 
-namespace JobBackGroundService.Services;
+namespace RemoteAssistant.JobConsoleService.Services;
 
 public class JobExecutionService : BackgroundService
 {

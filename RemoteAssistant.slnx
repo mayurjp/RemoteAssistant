@@ -1,6 +1,6 @@
 <Solution>
   <Project Path="RemoteAssistant.Core/RemoteAssistant.Core.csproj" />
-  <Project Path="RemoteAssistant.WebApi/RemoteAssistant.WebApi.csproj" />
-  <Project Path="BotBackGroundService/BotBackGroundService.csproj" />
-  <Project Path="JobBackGroundService/JobBackGroundService.csproj" />
+  <Project Path="RemoteAssistant.AdminApi/RemoteAssistant.AdminApi.csproj" />
+  <Project Path="RemoteAssistant.TelegramConsoleService/RemoteAssistant.TelegramConsoleService.csproj" />
+  <Project Path="RemoteAssistant.JobConsoleService/RemoteAssistant.JobConsoleService.csproj" />
 </Solution>

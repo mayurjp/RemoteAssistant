@@ -12,7 +12,7 @@ using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using RemoteAssistant.Core.Database;
 
-namespace BotBackGroundService.Services;
+namespace RemoteAssistant.TelegramConsoleService.Services;
 
 public class TelegramBotService : BackgroundService
 {

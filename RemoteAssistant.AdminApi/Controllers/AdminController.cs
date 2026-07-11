@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using RemoteAssistant.Core.Database;
 
-namespace RemoteAssistant.WebApi.Controllers;
+namespace RemoteAssistant.AdminApi.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]

@@ -21,8 +21,9 @@ bld/
 # User secrets and private configs
 appsettings.local.json
 appsettings.Development.json
-BotBackGroundService/appsettings.Development.json
-JobBackGroundService/appsettings.Development.json
+RemoteAssistant.TelegramConsoleService/appsettings.Development.json
+RemoteAssistant.JobConsoleService/appsettings.Development.json
+RemoteAssistant.AdminApi/appsettings.Development.json
 
 # Angular environment files with secrets
 src/environments/environment.development.ts

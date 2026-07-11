@@ -12,8 +12,8 @@ sequenceDiagram
     actor User as Telegram User
     participant Angular as Angular UI
     participant WebApi as .NET Web API
-    participant BotSvc as BotBackGroundService
-    participant JobSvc as JobBackGroundService
+    participant BotSvc as RemoteAssistant.TelegramConsoleService
+    participant JobSvc as RemoteAssistant.JobConsoleService
     participant DB as SQL Server Express
     participant Google as Google OAuth
 
@@ -52,9 +52,9 @@ sequenceDiagram
 | Project | Type | Description |
 |---------|------|-------------|
 | `RemoteAssistant.Core` | Class Library | Shared entities and EF Core DbContext |
-| `RemoteAssistant.WebApi` | ASP.NET Core Web API | REST API: OAuth, bot CRUD, registration management, job templates |
-| `BotBackGroundService` | .NET Worker Service | Telegram bot polling, commands, notification delivery |
-| `JobBackGroundService` | .NET Worker Service | Polls `JobRequests` table, executes jobs via `IJobExecutor` |
+| `RemoteAssistant.AdminApi` | ASP.NET Core Web API | REST API: OAuth, bot CRUD, registration management, job templates |
+| `RemoteAssistant.TelegramConsoleService` | .NET Worker Service | Telegram bot polling, commands, notification delivery |
+| `RemoteAssistant.JobConsoleService` | .NET Worker Service | Polls `JobRequests` table, executes jobs via `IJobExecutor` |
 | `remote-assistant-admin-ui` | Angular 18 SPA | Glassmorphic dark-themed web UI |
 
 ---
@@ -217,19 +217,19 @@ sequenceDiagram
 
 ### 1. Start the Web API
 ```bash
-dotnet run --project RemoteAssistant.WebApi
+dotnet run --project RemoteAssistant.AdminApi
 ```
 Starts on `http://localhost:5000`. Creates and migrates database tables on startup.
 
-### 2. Start the Bot Background Service
+### 2. Start the Telegram Console Service
 ```bash
-dotnet run --project BotBackGroundService
+dotnet run --project RemoteAssistant.TelegramConsoleService
 ```
 Polls the first active bot from `TelegramBots` every 15s. Delivers `UserNotifications`.
 
-### 3. Start the Job Background Service
+### 3. Start the Job Management Console Service
 ```bash
-dotnet run --project JobBackGroundService
+dotnet run --project RemoteAssistant.JobConsoleService
 ```
 Polls `JobRequests` every 10s, resolves `IJobExecutor` by `JobType`, executes pending jobs.
 
@@ -331,7 +331,7 @@ public interface IJobExecutor
 }
 ```
 
-**KiteDataLoadJob** generates mock OHLC candle data. Register new executors in `JobBackGroundService/Program.cs`:
+**KiteDataLoadJob** generates mock OHLC candle data. Register new executors in `RemoteAssistant.JobConsoleService/Program.cs`:
 ```csharp
 builder.Services.AddSingleton<IJobExecutor, YourJobExecutor>();
 ```

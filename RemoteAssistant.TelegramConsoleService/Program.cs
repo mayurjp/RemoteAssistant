@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using RemoteAssistant.Core.Database;
-using BotBackGroundService.Services;
+using RemoteAssistant.TelegramConsoleService.Services;
 
 var builder = Host.CreateApplicationBuilder(args);
 

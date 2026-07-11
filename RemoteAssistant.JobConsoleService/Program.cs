@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using RemoteAssistant.Core.Database;
-using JobBackGroundService.Services;
+using RemoteAssistant.JobConsoleService.Services;
 
 var builder = Host.CreateApplicationBuilder(args);
 

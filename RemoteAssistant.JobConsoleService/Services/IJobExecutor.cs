@@ -1,6 +1,6 @@
 using RemoteAssistant.Core.Database;
 
-namespace JobBackGroundService.Services;
+namespace RemoteAssistant.JobConsoleService.Services;
 
 public interface IJobExecutor
 {

@@ -2,7 +2,7 @@ using System.Text.Json;
 using RemoteAssistant.Core.Database;
 using Microsoft.Extensions.Logging;
 
-namespace JobBackGroundService.Services;
+namespace RemoteAssistant.JobConsoleService.Services;
 
 public class KiteDataLoadJob : IJobExecutor
 {
