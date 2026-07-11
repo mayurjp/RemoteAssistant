@@ -115,6 +115,59 @@ using (var scope = app.Services.CreateScope())
             END
             """);
 
+        context.Database.ExecuteSqlRaw("""
+            IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'PendingRegistrations')
+            BEGIN
+                CREATE TABLE [PendingRegistrations] (
+                    [Id] int NOT NULL IDENTITY,
+                    [TelegramId] bigint NOT NULL,
+                    [BotId] int NOT NULL,
+                    [Status] nvarchar(50) NOT NULL DEFAULT 'Pending',
+                    [RequestedAt] datetime2 NOT NULL,
+                    [ReviewedAt] datetime2 NULL,
+                    [ReviewedBy] nvarchar(100) NULL,
+                    CONSTRAINT [PK_PendingRegistrations] PRIMARY KEY ([Id]),
+                    CONSTRAINT [FK_PendingRegistrations_TelegramBots_BotId] FOREIGN KEY ([BotId]) REFERENCES [TelegramBots] ([Id]) ON DELETE CASCADE
+                );
+            END
+            """);
+
+        context.Database.ExecuteSqlRaw("""
+            IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'Jobs')
+            BEGIN
+                CREATE TABLE [Jobs] (
+                    [Id] int NOT NULL IDENTITY,
+                    [BotId] int NOT NULL,
+                    [TelegramId] bigint NOT NULL,
+                    [Command] nvarchar(100) NOT NULL,
+                    [Payload] nvarchar(2000) NULL,
+                    [Status] nvarchar(50) NOT NULL DEFAULT 'Pending',
+                    [CreatedAt] datetime2 NOT NULL,
+                    [CompletedAt] datetime2 NULL,
+                    [Result] nvarchar(2000) NULL,
+                    CONSTRAINT [PK_Jobs] PRIMARY KEY ([Id]),
+                    CONSTRAINT [FK_Jobs_TelegramBots_BotId] FOREIGN KEY ([BotId]) REFERENCES [TelegramBots] ([Id]) ON DELETE CASCADE
+                );
+            END
+            """);
+
+        context.Database.ExecuteSqlRaw("""
+            IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'BotNotifications')
+            BEGIN
+                CREATE TABLE [BotNotifications] (
+                    [Id] int NOT NULL IDENTITY,
+                    [BotId] int NOT NULL,
+                    [TelegramId] bigint NOT NULL,
+                    [Message] nvarchar(2000) NOT NULL,
+                    [Sent] bit NOT NULL DEFAULT 0,
+                    [CreatedAt] datetime2 NOT NULL,
+                    [SentAt] datetime2 NULL,
+                    CONSTRAINT [PK_BotNotifications] PRIMARY KEY ([Id]),
+                    CONSTRAINT [FK_BotNotifications_TelegramBots_BotId] FOREIGN KEY ([BotId]) REFERENCES [TelegramBots] ([Id]) ON DELETE CASCADE
+                );
+            END
+            """);
+
         Console.WriteLine("Database and tables verified/created successfully.");
     }
     catch (Exception ex)

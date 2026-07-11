@@ -349,6 +349,176 @@ public class AdminController : ControllerBase
         return Ok(registrations);
     }
 
+    [HttpGet("bots/{id}/pending")]
+    public async Task<IActionResult> GetPendingRegistrations(int id)
+    {
+        var exists = await _context.TelegramBots.AnyAsync(b => b.Id == id);
+        if (!exists) return NotFound("Bot not found.");
+
+        var pending = await _context.PendingRegistrations
+            .Where(r => r.BotId == id)
+            .OrderByDescending(r => r.RequestedAt)
+            .Select(r => new
+            {
+                r.Id,
+                r.TelegramId,
+                r.Status,
+                r.RequestedAt,
+                r.ReviewedAt,
+                r.ReviewedBy
+            })
+            .ToListAsync();
+
+        return Ok(pending);
+    }
+
+    [HttpPost("bots/{botId}/pending/{id}/approve")]
+    public async Task<IActionResult> ApproveRegistration(int botId, int id)
+    {
+        var pending = await _context.PendingRegistrations
+            .FirstOrDefaultAsync(r => r.Id == id && r.BotId == botId);
+
+        if (pending == null) return NotFound("Pending registration not found.");
+        if (pending.Status != "Pending") return BadRequest("This request has already been reviewed.");
+
+        pending.Status = "Approved";
+        pending.ReviewedAt = DateTime.UtcNow;
+        pending.ReviewedBy = User.FindFirst(ClaimTypes.Email)?.Value ?? "unknown";
+        _context.PendingRegistrations.Update(pending);
+
+        var existing = await _context.BotRegistrations
+            .FirstOrDefaultAsync(r => r.TelegramId == pending.TelegramId && r.BotId == botId);
+
+        if (existing != null)
+        {
+            existing.IsActive = true;
+            existing.UnregisteredAt = null;
+            _context.BotRegistrations.Update(existing);
+        }
+        else
+        {
+            _context.BotRegistrations.Add(new BotRegistration
+            {
+                TelegramId = pending.TelegramId,
+                BotId = botId,
+                IsActive = true,
+                RegisteredAt = DateTime.UtcNow
+            });
+        }
+
+        _context.BotNotifications.Add(new BotNotification
+        {
+            BotId = botId,
+            TelegramId = pending.TelegramId,
+            Message = "Your registration has been approved. You can now use bot commands.",
+            Sent = false,
+            CreatedAt = DateTime.UtcNow
+        });
+
+        await _context.SaveChangesAsync();
+        return Ok(new { Message = "Registration approved." });
+    }
+
+    [HttpPost("bots/{botId}/pending/{id}/reject")]
+    public async Task<IActionResult> RejectRegistration(int botId, int id)
+    {
+        var pending = await _context.PendingRegistrations
+            .FirstOrDefaultAsync(r => r.Id == id && r.BotId == botId);
+
+        if (pending == null) return NotFound("Pending registration not found.");
+        if (pending.Status != "Pending") return BadRequest("This request has already been reviewed.");
+
+        pending.Status = "Rejected";
+        pending.ReviewedAt = DateTime.UtcNow;
+        pending.ReviewedBy = User.FindFirst(ClaimTypes.Email)?.Value ?? "unknown";
+        _context.PendingRegistrations.Update(pending);
+
+        _context.BotNotifications.Add(new BotNotification
+        {
+            BotId = botId,
+            TelegramId = pending.TelegramId,
+            Message = "Your registration request has been rejected.",
+            Sent = false,
+            CreatedAt = DateTime.UtcNow
+        });
+
+        await _context.SaveChangesAsync();
+        return Ok(new { Message = "Registration rejected." });
+    }
+
+    [HttpPost("bots/{botId}/pending/{id}/reapprove")]
+    public async Task<IActionResult> ReapproveRegistration(int botId, int id)
+    {
+        var pending = await _context.PendingRegistrations
+            .FirstOrDefaultAsync(r => r.Id == id && r.BotId == botId);
+
+        if (pending == null) return NotFound("Pending registration not found.");
+        if (pending.Status != "Rejected") return BadRequest("Only rejected requests can be re-approved.");
+
+        pending.Status = "Approved";
+        pending.ReviewedAt = DateTime.UtcNow;
+        pending.ReviewedBy = User.FindFirst(ClaimTypes.Email)?.Value ?? "unknown";
+        _context.PendingRegistrations.Update(pending);
+
+        var existing = await _context.BotRegistrations
+            .FirstOrDefaultAsync(r => r.TelegramId == pending.TelegramId && r.BotId == botId);
+
+        if (existing != null)
+        {
+            existing.IsActive = true;
+            existing.UnregisteredAt = null;
+            _context.BotRegistrations.Update(existing);
+        }
+        else
+        {
+            _context.BotRegistrations.Add(new BotRegistration
+            {
+                TelegramId = pending.TelegramId,
+                BotId = botId,
+                IsActive = true,
+                RegisteredAt = DateTime.UtcNow
+            });
+        }
+
+        _context.BotNotifications.Add(new BotNotification
+        {
+            BotId = botId,
+            TelegramId = pending.TelegramId,
+            Message = "Your registration has been re-approved. You can now use bot commands again.",
+            Sent = false,
+            CreatedAt = DateTime.UtcNow
+        });
+
+        await _context.SaveChangesAsync();
+        return Ok(new { Message = "Registration re-approved." });
+    }
+
+    [HttpPost("bots/{botId}/registrations/{id}/unregister")]
+    public async Task<IActionResult> AdminUnregister(int botId, int id)
+    {
+        var reg = await _context.BotRegistrations
+            .FirstOrDefaultAsync(r => r.Id == id && r.BotId == botId);
+
+        if (reg == null) return NotFound("Registration not found.");
+        if (!reg.IsActive) return BadRequest("User is already unregistered.");
+
+        reg.IsActive = false;
+        reg.UnregisteredAt = DateTime.UtcNow;
+        _context.BotRegistrations.Update(reg);
+
+        _context.BotNotifications.Add(new BotNotification
+        {
+            BotId = botId,
+            TelegramId = reg.TelegramId,
+            Message = "You have been unregistered from this bot by the administrator. Send `/register` to request access again.",
+            Sent = false,
+            CreatedAt = DateTime.UtcNow
+        });
+
+        await _context.SaveChangesAsync();
+        return Ok(new { Message = "User unregistered." });
+    }
+
     private async Task<(bool Success, string? Error, string? IdToken, string? RefreshToken, string? Email)>
         ExchangeGoogleCodeAsync(string code, string clientId, string clientSecret, string redirectUri)
     {

@@ -71,6 +71,26 @@ export class ApiService {
   getBotRegistrations(botId: number): Observable<BotRegistration[]> {
     return this.http.get<BotRegistration[]>(`${this.baseUrl}/bots/${botId}/registrations`);
   }
+
+  getPendingRegistrations(botId: number): Observable<PendingRegistration[]> {
+    return this.http.get<PendingRegistration[]>(`${this.baseUrl}/bots/${botId}/pending`);
+  }
+
+  approveRegistration(botId: number, id: number): Observable<any> {
+    return this.http.post<any>(`${this.baseUrl}/bots/${botId}/pending/${id}/approve`, {});
+  }
+
+  rejectRegistration(botId: number, id: number): Observable<any> {
+    return this.http.post<any>(`${this.baseUrl}/bots/${botId}/pending/${id}/reject`, {});
+  }
+
+  reapproveRegistration(botId: number, id: number): Observable<any> {
+    return this.http.post<any>(`${this.baseUrl}/bots/${botId}/pending/${id}/reapprove`, {});
+  }
+
+  unregisterUser(botId: number, regId: number): Observable<any> {
+    return this.http.post<any>(`${this.baseUrl}/bots/${botId}/registrations/${regId}/unregister`, {});
+  }
 }
 
 export interface BotRegistration {
@@ -79,4 +99,13 @@ export interface BotRegistration {
   isActive: boolean;
   registeredAt: string;
   unregisteredAt: string | null;
+}
+
+export interface PendingRegistration {
+  id: number;
+  telegramId: number;
+  status: string;
+  requestedAt: string;
+  reviewedAt: string | null;
+  reviewedBy: string | null;
 }

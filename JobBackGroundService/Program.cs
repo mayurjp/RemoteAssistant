@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using RemoteAssistant.Core.Database;
-using RemoteAssistant.Worker.Services;
+using JobBackGroundService.Services;
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -9,7 +9,7 @@ builder.Services.AddDbContext<SchedulerDbContext>(options =>
     options.UseSqlServer(connectionString), ServiceLifetime.Transient);
 
 builder.Services.AddHttpClient();
-builder.Services.AddHostedService<TelegramBotService>();
+builder.Services.AddHostedService<JobExecutionService>();
 
 var host = builder.Build();
 host.Run();

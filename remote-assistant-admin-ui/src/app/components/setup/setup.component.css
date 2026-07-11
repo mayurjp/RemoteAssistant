@@ -482,6 +482,39 @@
   border-bottom: none;
 }
 
+.pending-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  font-size: 13px;
+}
+
+.pending-item:last-child {
+  border-bottom: none;
+  margin-bottom: 16px;
+}
+
+.pending-status {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+  background: rgba(237, 137, 54, 0.15);
+  color: #ed8936;
+}
+
+.pending-status.rejected {
+  background: rgba(229, 62, 62, 0.15);
+  color: #f56565;
+}
+
+.pending-status.approved {
+  background: rgba(72, 187, 120, 0.15);
+  color: #48bb78;
+}
+
 .reg-email {
   color: #f1f1f1;
   font-weight: 500;

@@ -2,7 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
-import { ApiService, ConfigStatus, TelegramBot, BotRegistration } from '../../services/api.service';
+import { ApiService, ConfigStatus, TelegramBot, BotRegistration, PendingRegistration } from '../../services/api.service';
 import { AuthService } from '../../services/auth.service';
 
 @Component({
@@ -24,6 +24,7 @@ export class SetupComponent implements OnInit {
 
   bots: TelegramBot[] = [];
   registrations: { [botId: number]: BotRegistration[] } = {};
+  pending: { [botId: number]: PendingRegistration[] } = {};
   expandedBotId: number | null = null;
 
   showForm = false;
@@ -63,6 +64,51 @@ export class SetupComponent implements OnInit {
     this.apiService.getBotRegistrations(botId).subscribe({
       next: (regs) => this.registrations[botId] = regs,
       error: (err) => console.error('Failed to load registrations', err)
+    });
+    this.apiService.getPendingRegistrations(botId).subscribe({
+      next: (pending) => this.pending[botId] = pending,
+      error: (err) => console.error('Failed to load pending registrations', err)
+    });
+  }
+
+  approveRegistration(botId: number, id: number) {
+    this.apiService.approveRegistration(botId, id).subscribe({
+      next: () => this.toggleRegistrations(botId),
+      error: (err) => alert('Failed: ' + (err.error?.message || err.message))
+    });
+    this.toggleRegistrations(botId);
+  }
+
+  rejectRegistration(botId: number, id: number) {
+    this.apiService.rejectRegistration(botId, id).subscribe({
+      next: () => this.refreshExpand(botId),
+      error: (err) => alert('Failed: ' + (err.error?.message || err.message))
+    });
+  }
+
+  reapproveRegistration(botId: number, id: number) {
+    this.apiService.reapproveRegistration(botId, id).subscribe({
+      next: () => this.refreshExpand(botId),
+      error: (err) => alert('Failed: ' + (err.error?.message || err.message))
+    });
+  }
+
+  unregisterUser(botId: number, regId: number) {
+    if (!confirm('Unregister this user? They will be notified and can re-register.')) return;
+    this.apiService.unregisterUser(botId, regId).subscribe({
+      next: () => this.refreshExpand(botId),
+      error: (err) => alert('Failed: ' + (err.error?.message || err.message))
+    });
+  }
+
+  private refreshExpand(botId: number) {
+    this.apiService.getBotRegistrations(botId).subscribe({
+      next: (regs) => this.registrations[botId] = regs,
+      error: (err) => console.error(err)
+    });
+    this.apiService.getPendingRegistrations(botId).subscribe({
+      next: (pending) => this.pending[botId] = pending,
+      error: (err) => console.error(err)
     });
   }
 

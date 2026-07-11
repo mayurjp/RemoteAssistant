@@ -1,5 +1,6 @@
 <Solution>
   <Project Path="RemoteAssistant.Core/RemoteAssistant.Core.csproj" />
   <Project Path="RemoteAssistant.WebApi/RemoteAssistant.WebApi.csproj" />
-  <Project Path="RemoteAssistant.Worker/RemoteAssistant.Worker.csproj" />
+  <Project Path="BotBackGroundService/BotBackGroundService.csproj" />
+  <Project Path="JobBackGroundService/JobBackGroundService.csproj" />
 </Solution>

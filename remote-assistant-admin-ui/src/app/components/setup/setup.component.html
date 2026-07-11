@@ -47,16 +47,29 @@
             </div>
           </div>
 
-          <div class="reg-list" *ngIf="expandedBotId === bot.id && registrations[bot.id]">
-            <div class="reg-header">Registered Users ({{ registrations[bot.id].length }})</div>
-            <div class="reg-empty" *ngIf="registrations[bot.id].length === 0">No users registered yet.</div>
-          <div class="reg-item" *ngFor="let reg of registrations[bot.id]">
-            <span class="reg-id">Telegram ID: {{ reg.telegramId }}</span>
-            <span class="reg-date">Since {{ reg.registeredAt | date:'medium' }}</span>
-            <span class="reg-status" [ngClass]="reg.isActive ? 'active' : 'inactive'">
-              {{ reg.isActive ? 'Active' : 'Unregistered' }}
-            </span>
-          </div>
+          <div class="reg-list" *ngIf="expandedBotId === bot.id">
+            <div class="reg-header" *ngIf="pending[bot.id] && pending[bot.id].length > 0">
+              Requests ({{ pending[bot.id].length }})
+            </div>
+            <div class="pending-item" *ngFor="let pr of pending[bot.id]">
+              <span class="reg-id">Telegram ID: {{ pr.telegramId }}</span>
+              <span class="reg-date">{{ pr.requestedAt | date:'short' }}</span>
+              <span class="pending-status" [ngClass]="{'rejected': pr.status === 'Rejected', 'approved': pr.status === 'Approved'}">{{ pr.status }}</span>
+              <button *ngIf="pr.status === 'Pending'" (click)="approveRegistration(bot.id, pr.id)" class="btn btn-sm btn-primary">Approve</button>
+              <button *ngIf="pr.status === 'Pending'" (click)="rejectRegistration(bot.id, pr.id)" class="btn btn-sm btn-danger">Reject</button>
+              <button *ngIf="pr.status === 'Rejected'" (click)="reapproveRegistration(bot.id, pr.id)" class="btn btn-sm btn-primary">Re-approve</button>
+            </div>
+
+            <div class="reg-header">Registered Users ({{ registrations[bot.id] ? registrations[bot.id].length : 0 }})</div>
+            <div class="reg-empty" *ngIf="!registrations[bot.id] || registrations[bot.id].length === 0">No users registered yet.</div>
+            <div class="reg-item" *ngFor="let reg of registrations[bot.id]">
+              <span class="reg-id">Telegram ID: {{ reg.telegramId }}</span>
+              <span class="reg-date">Since {{ reg.registeredAt | date:'medium' }}</span>
+              <span class="reg-status" [ngClass]="reg.isActive ? 'active' : 'inactive'">
+                {{ reg.isActive ? 'Active' : 'Unregistered' }}
+              </span>
+              <button *ngIf="reg.isActive" (click)="unregisterUser(bot.id, reg.id)" class="btn btn-sm btn-danger">Unregister</button>
+            </div>
           </div>
         </ng-container>
       </div>
