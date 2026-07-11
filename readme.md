@@ -19,13 +19,14 @@ sequenceDiagram
     Admin->>Angular: Open Admin Portal → /login
     Admin->>Angular: Click "Sign in with Google"
     Angular->>WebApi: GET /api/admin/auth/google-login
-    WebApi->>Angular: 302 Redirect to Google (openid email profile)
+    WebApi->>Angular: 302 Redirect to Google (login + gmail.send scopes)
     Angular->>Google: Follow Redirect
-    Google-->>Admin: Prompt for Consent
+    Google-->>Admin: Prompt for Consent (sign-in + Gmail access)
     Admin->>Google: Approve
-    Google-->>WebApi: Redirect to /api/admin/auth/callback?code=xxx&state=login
+    Google-->>WebApi: Redirect to /api/admin/auth/callback?code=xxx
     WebApi->>Google: Exchange Code for Tokens
-    Google-->>WebApi: ID Token (email)
+    Google-->>WebApi: ID Token + Refresh Token
+    WebApi->>DB: Save Refresh Token & Admin Email
     WebApi->>WebApi: Validate ID Token, Issue JWT
     WebApi->>WebApi: Set JWT as Cookie
     WebApi-->>Angular: 302 Redirect to /dashboard
@@ -33,18 +34,6 @@ sequenceDiagram
 
     Admin->>Angular: Navigate to Setup
     Admin->>Angular: Save Telegram Bot Token
-    Admin->>Angular: Enter Google Client ID & Secret → Save
-    Admin->>Angular: Click "Authorize Gmail Account"
-    Angular->>WebApi: GET /api/admin/auth/google-login?mode=gmail
-    WebApi->>Angular: 302 Redirect to Google (gmail.send scope)
-    Angular->>Google: Follow Redirect
-    Google-->>Admin: Prompt for Gmail Consent
-    Admin->>Google: Approve
-    Google-->>WebApi: Redirect to /api/admin/auth/callback?code=xxx&state=gmail
-    WebApi->>Google: Exchange Code for Refresh Token
-    Google-->>WebApi: Refresh Token
-    WebApi->>DB: Save Refresh Token & Admin Email
-    WebApi-->>Angular: 302 Redirect to /setup?gmail=success
 
     User->>Worker: Send /register <email>
     Worker->>DB: Insert User (OtpCode, Expiry, IsVerified=false)
@@ -113,14 +102,13 @@ sequenceDiagram
 1. Go to the [Google Cloud Console](https://console.cloud.google.com/)
 2. Create a project → **APIs & Services > Credentials**
 3. Configure the **OAuth Consent Screen** (External) with scopes:
-   - `openid` / `email` / `profile` (for login)
-   - `https://www.googleapis.com/auth/gmail.send` (for sending OTP emails)
+   - `openid` / `email` / `profile`
+   - `https://www.googleapis.com/auth/gmail.send`
 4. Create **OAuth Client ID** → Web Application
 5. Under **Authorized redirect URIs**, add:
    ```
    http://localhost:5000/api/admin/auth/callback
    ```
-   This single URL handles both login and Gmail authorization (distinguished by `state` parameter).
 6. Save to get your **Client ID** and **Client Secret**
 
 ---
@@ -160,12 +148,10 @@ npm run start
 
 1. Open **`http://localhost:4200`** — you'll be redirected to the **login page**
 2. If credentials are not yet configured, enter your **Client ID** and **Client Secret** and click **Save Credentials**
-3. Click **Sign in with Google** — the server redirects you to Google for authentication
-4. After login, you're taken to the **Dashboard**
+3. Click **Sign in with Google** — the server redirects you to Google. A single consent screen covers both sign-in and Gmail access.
+4. After login, you're taken to the **Dashboard**. Gmail is already authorized.
 5. Click **⚙ Settings Panel** → go to the Setup page
-6. Enter your **Telegram Bot Token** and click **Save Bot Token**
-7. Click **🔑 Authorize Gmail Account** → server redirects to Google for Gmail consent → redirected back
-8. Gmail service shows active status — setup complete
+6. Enter your **Telegram Bot Token** and click **Save Bot Token** — setup complete
 
 > Optional: Restrict access to a specific Google account by setting `"Admin:AllowedEmail": "admin@example.com"` in `appsettings.json`.
 
@@ -175,8 +161,8 @@ npm run start
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
-| `GET` | `/api/admin/auth/google-login` | No | Redirect to Google OAuth (`?mode=gmail` for Gmail) |
-| `GET` | `/api/admin/auth/callback` | No | Google OAuth callback — exchanges code, sets JWT cookie, redirects to frontend |
+| `GET` | `/api/admin/auth/google-login` | No | Redirect to Google OAuth (sign-in + Gmail scopes) |
+| `GET` | `/api/admin/auth/callback` | No | Google OAuth callback — exchanges code, saves refresh token, sets JWT cookie, redirects to dashboard |
 | `GET` | `/api/admin/auth/status` | Yes | Current authenticated user email |
 | `POST` | `/api/admin/auth/logout` | No | Logout (client-side) |
 | `GET` | `/api/admin/config` | No | Configuration status |

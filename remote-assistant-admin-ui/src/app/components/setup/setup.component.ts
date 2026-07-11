@@ -22,13 +22,9 @@ export class SetupComponent implements OnInit {
   };
 
   telegramToken: string = '';
-  googleClientId: string = '';
-  googleClientSecret: string = '';
 
   telegramMessage: string = '';
   telegramError: boolean = false;
-  googleMessage: string = '';
-  googleError: boolean = false;
 
   constructor(private apiService: ApiService) {}
 
@@ -67,30 +63,5 @@ export class SetupComponent implements OnInit {
         this.telegramError = true;
       }
     });
-  }
-
-  saveGoogle() {
-    this.googleMessage = '';
-    if (!this.googleClientId.trim() || !this.googleClientSecret.trim()) {
-      this.googleMessage = 'Both Client ID and Client Secret are required.';
-      this.googleError = true;
-      return;
-    }
-
-    this.apiService.saveGoogleCredentials(this.googleClientId, this.googleClientSecret).subscribe({
-      next: (res) => {
-        this.googleMessage = 'Google credentials saved!';
-        this.googleError = false;
-        this.loadStatus();
-      },
-      error: (err) => {
-        this.googleMessage = 'Failed to save credentials: ' + (err.error?.message || err.message);
-        this.googleError = true;
-      }
-    });
-  }
-
-  startOAuthRedirect() {
-    window.location.href = `${this.apiService.baseUrl}/auth/google-login?mode=gmail`;
   }
 }

@@ -86,7 +86,7 @@ public class AdminController : ControllerBase
 
     [AllowAnonymous]
     [HttpGet("auth/google-login")]
-    public async Task<IActionResult> GoogleLogin([FromQuery] string mode = "login")
+    public async Task<IActionResult> GoogleLogin()
     {
         var settings = await _context.SystemSettings.ToListAsync();
         var clientId = settings.FirstOrDefault(s => s.Key == "GoogleClientId")?.Value 
@@ -98,26 +98,20 @@ public class AdminController : ControllerBase
         }
 
         var callbackUrl = $"{Request.Scheme}://{Request.Host}/api/admin/auth/callback";
-        var scopes = mode == "gmail" 
-            ? "openid email https://www.googleapis.com/auth/gmail.send" 
-            : "openid email profile";
-        var accessType = mode == "gmail" ? "offline" : "offline";
-
         var authUrl = $"https://accounts.google.com/o/oauth2/v2/auth" +
                       $"?client_id={Uri.EscapeDataString(clientId)}" +
                       $"&redirect_uri={Uri.EscapeDataString(callbackUrl)}" +
                       $"&response_type=code" +
-                      $"&scope={Uri.EscapeDataString(scopes)}" +
-                      $"&access_type={accessType}" +
-                      $"&prompt=consent" +
-                      $"&state={Uri.EscapeDataString(mode)}";
+                      $"&scope={Uri.EscapeDataString("openid email profile https://www.googleapis.com/auth/gmail.send")}" +
+                      $"&access_type=offline" +
+                      $"&prompt=consent";
 
         return Redirect(authUrl);
     }
 
     [AllowAnonymous]
     [HttpGet("auth/callback")]
-    public async Task<IActionResult> GoogleCallback([FromQuery] string code, [FromQuery] string state, [FromQuery] string? error)
+    public async Task<IActionResult> GoogleCallback([FromQuery] string code, [FromQuery] string? error)
     {
         var frontendBase = _configuration["Frontend:BaseUrl"] ?? "http://localhost:4200";
 
@@ -152,29 +146,6 @@ public class AdminController : ControllerBase
             return Redirect($"{frontendBase}/login?error={Uri.EscapeDataString(tokenError ?? "exchange_failed")}");
         }
 
-        if (state == "gmail")
-        {
-            if (!string.IsNullOrEmpty(refreshToken))
-            {
-                await SaveSettingAsync("GoogleRefreshToken", refreshToken);
-            }
-            else
-            {
-                var existing = await _context.SystemSettings.FirstOrDefaultAsync(s => s.Key == "GoogleRefreshToken");
-                if (existing == null || string.IsNullOrEmpty(existing.Value))
-                {
-                    return Redirect($"{frontendBase}/setup?gmail=error&reason=no_refresh_token");
-                }
-            }
-
-            if (!string.IsNullOrEmpty(email))
-            {
-                await SaveSettingAsync("GoogleAdminEmail", email);
-            }
-
-            return Redirect($"{frontendBase}/setup?gmail=success");
-        }
-
         if (string.IsNullOrEmpty(email))
         {
             return Redirect($"{frontendBase}/login?error=no_email");
@@ -184,6 +155,16 @@ public class AdminController : ControllerBase
         if (!string.IsNullOrEmpty(allowedEmail) && !email.Equals(allowedEmail, StringComparison.OrdinalIgnoreCase))
         {
             return Redirect($"{frontendBase}/login?error=access_denied");
+        }
+
+        if (!string.IsNullOrEmpty(refreshToken))
+        {
+            await SaveSettingAsync("GoogleRefreshToken", refreshToken);
+        }
+
+        if (!string.IsNullOrEmpty(email))
+        {
+            await SaveSettingAsync("GoogleAdminEmail", email);
         }
 
         var jwtKey = _configuration["Jwt:Key"] ?? "RemoteAssistant-SuperSecret-Key-2024-MinLength32Chars!";

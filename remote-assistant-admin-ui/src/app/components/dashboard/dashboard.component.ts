@@ -78,10 +78,7 @@ export class DashboardComponent implements OnInit {
   }
 
   get isConfigured(): boolean {
-    return this.status.hasTelegramBotToken && 
-           this.status.hasGoogleClientId && 
-           this.status.hasGoogleClientSecret && 
-           this.status.hasGoogleRefreshToken;
+    return this.status.hasTelegramBotToken;
   }
 
   logout() {

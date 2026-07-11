@@ -19,16 +19,13 @@
       <span class="pulse-dot" [ngClass]="isConfigured ? 'pulse-green' : 'pulse-orange'"></span>
       <div>
         <h3>System Configuration: {{ isConfigured ? 'Fully Operational' : 'Action Required' }}</h3>
-        <p *ngIf="isConfigured">Telegram Bot and Gmail OAuth services are active.</p>
-        <p *ngIf="!isConfigured">Some integration parameters are missing. Onboarding is currently paused.</p>
+        <p *ngIf="isConfigured">Telegram Bot is active and ready to handle registrations.</p>
+        <p *ngIf="!isConfigured">Telegram Bot Token is missing. Onboarding is currently paused.</p>
       </div>
     </div>
     <div class="status-checks">
       <span class="check-item" [ngClass]="status.hasTelegramBotToken ? 'check-yes' : 'check-no'">
         Bot Token {{ status.hasTelegramBotToken ? '✓' : '✗' }}
-      </span>
-      <span class="check-item" [ngClass]="status.hasGoogleRefreshToken ? 'check-yes' : 'check-no'">
-        Gmail Auth {{ status.hasGoogleRefreshToken ? '✓' : '✗' }}
       </span>
     </div>
   </div>
