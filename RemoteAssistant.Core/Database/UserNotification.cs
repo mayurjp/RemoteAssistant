@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace RemoteAssistant.Core.Database;
 
-public class Job
+public class UserNotification
 {
     [Key]
     public int Id { get; set; }
@@ -12,21 +12,14 @@ public class Job
 
     public long TelegramId { get; set; }
 
-    [MaxLength(100)]
-    public string Command { get; set; } = string.Empty;
-
     [MaxLength(2000)]
-    public string? Payload { get; set; }
+    public string Message { get; set; } = string.Empty;
 
-    [MaxLength(50)]
-    public string Status { get; set; } = "Pending";
+    public bool Sent { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-    public DateTime? CompletedAt { get; set; }
-
-    [MaxLength(2000)]
-    public string? Result { get; set; }
+    public DateTime? SentAt { get; set; }
 
     public TelegramBot Bot { get; set; } = null!;
 }

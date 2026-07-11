@@ -98,27 +98,33 @@ using (var scope = app.Services.CreateScope())
             END
             """);
 
+        // Drop stale tables in reverse dependency order (dependents first)
+        var staleTables = new[] { "BotNotifications", "UserNotifications", "RegistrationRequests", "UserMemberships", "TelegramBotRegistrations", "UserRegistrations", "BotRegistrations", "BotJobTemplates", "BotJobAssignments", "PendingRegistrations", "Users", "BotJobs", "JobDefinitions", "Jobs" };
+        foreach (var tbl in staleTables)
+        {
+            try { context.Database.ExecuteSqlRaw($"IF OBJECT_ID('{tbl}', 'U') IS NOT NULL DROP TABLE [{tbl}];"); }
+            catch (Exception ex) { Console.WriteLine($"Could not drop {tbl}: {ex.Message}"); }
+        }
+
         context.Database.ExecuteSqlRaw("""
-            IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'BotRegistrations')
+            IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'UserMemberships')
             BEGIN
-                CREATE TABLE [BotRegistrations] (
+                CREATE TABLE [UserMemberships] (
                     [Id] int NOT NULL IDENTITY,
                     [TelegramId] bigint NOT NULL,
                     [BotId] int NOT NULL,
-                    [IsActive] bit NOT NULL DEFAULT 1,
                     [RegisteredAt] datetime2 NOT NULL,
-                    [UnregisteredAt] datetime2 NULL,
-                    CONSTRAINT [PK_BotRegistrations] PRIMARY KEY ([Id]),
-                    CONSTRAINT [FK_BotRegistrations_TelegramBots_BotId] FOREIGN KEY ([BotId]) REFERENCES [TelegramBots] ([Id]) ON DELETE CASCADE,
-                    CONSTRAINT [IX_BotRegistrations_TelegramId_BotId] UNIQUE ([TelegramId], [BotId])
+                    CONSTRAINT [PK_UserMemberships] PRIMARY KEY ([Id]),
+                    CONSTRAINT [FK_UserMemberships_TelegramBots_BotId] FOREIGN KEY ([BotId]) REFERENCES [TelegramBots] ([Id]) ON DELETE CASCADE,
+                    CONSTRAINT [IX_UserMemberships_TelegramId_BotId] UNIQUE ([TelegramId], [BotId])
                 );
             END
             """);
 
         context.Database.ExecuteSqlRaw("""
-            IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'PendingRegistrations')
+            IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'RegistrationRequests')
             BEGIN
-                CREATE TABLE [PendingRegistrations] (
+                CREATE TABLE [RegistrationRequests] (
                     [Id] int NOT NULL IDENTITY,
                     [TelegramId] bigint NOT NULL,
                     [BotId] int NOT NULL,
@@ -126,35 +132,67 @@ using (var scope = app.Services.CreateScope())
                     [RequestedAt] datetime2 NOT NULL,
                     [ReviewedAt] datetime2 NULL,
                     [ReviewedBy] nvarchar(100) NULL,
-                    CONSTRAINT [PK_PendingRegistrations] PRIMARY KEY ([Id]),
-                    CONSTRAINT [FK_PendingRegistrations_TelegramBots_BotId] FOREIGN KEY ([BotId]) REFERENCES [TelegramBots] ([Id]) ON DELETE CASCADE
+                    CONSTRAINT [PK_RegistrationRequests] PRIMARY KEY ([Id]),
+                    CONSTRAINT [FK_RegistrationRequests_TelegramBots_BotId] FOREIGN KEY ([BotId]) REFERENCES [TelegramBots] ([Id]) ON DELETE CASCADE
                 );
             END
             """);
 
         context.Database.ExecuteSqlRaw("""
-            IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'Jobs')
+            IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'JobRequests')
             BEGIN
-                CREATE TABLE [Jobs] (
+                CREATE TABLE [JobRequests] (
                     [Id] int NOT NULL IDENTITY,
                     [BotId] int NOT NULL,
+                    [JobType] nvarchar(100) NOT NULL,
                     [TelegramId] bigint NOT NULL,
-                    [Command] nvarchar(100) NOT NULL,
-                    [Payload] nvarchar(2000) NULL,
+                    [Parameters] nvarchar(2000) NULL,
                     [Status] nvarchar(50) NOT NULL DEFAULT 'Pending',
                     [CreatedAt] datetime2 NOT NULL,
                     [CompletedAt] datetime2 NULL,
-                    [Result] nvarchar(2000) NULL,
-                    CONSTRAINT [PK_Jobs] PRIMARY KEY ([Id]),
-                    CONSTRAINT [FK_Jobs_TelegramBots_BotId] FOREIGN KEY ([BotId]) REFERENCES [TelegramBots] ([Id]) ON DELETE CASCADE
+                    [Result] nvarchar(4000) NULL,
+                    CONSTRAINT [PK_JobRequests] PRIMARY KEY ([Id]),
+                    CONSTRAINT [FK_JobRequests_TelegramBots_BotId] FOREIGN KEY ([BotId]) REFERENCES [TelegramBots] ([Id])
                 );
             END
             """);
 
         context.Database.ExecuteSqlRaw("""
-            IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'BotNotifications')
+            IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'JobTemplates')
             BEGIN
-                CREATE TABLE [BotNotifications] (
+                CREATE TABLE [JobTemplates] (
+                    [Id] int NOT NULL IDENTITY,
+                    [JobType] nvarchar(100) NOT NULL,
+                    [Name] nvarchar(200) NOT NULL,
+                    [Description] nvarchar(500) NULL,
+                    [IsActive] bit NOT NULL DEFAULT 1,
+                    [CreatedAt] datetime2 NOT NULL,
+                    [UpdatedAt] datetime2 NOT NULL,
+                    CONSTRAINT [PK_JobTemplates] PRIMARY KEY ([Id])
+                );
+
+                INSERT INTO [JobTemplates] ([JobType], [Name], [Description], [CreatedAt], [UpdatedAt])
+                VALUES ('KiteDataLoad', 'Kite Connect Data Load', 'Fetches mock Kite Connect OHLC candle data', GETDATE(), GETDATE());
+            END
+            """);
+
+        context.Database.ExecuteSqlRaw("""
+            IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'JobBotMappings')
+            BEGIN
+                CREATE TABLE [JobBotMappings] (
+                    [BotId] int NOT NULL,
+                    [JobTemplateId] int NOT NULL,
+                    CONSTRAINT [PK_JobBotMappings] PRIMARY KEY ([BotId], [JobTemplateId]),
+                    CONSTRAINT [FK_JobBotMappings_TelegramBots_BotId] FOREIGN KEY ([BotId]) REFERENCES [TelegramBots] ([Id]) ON DELETE CASCADE,
+                    CONSTRAINT [FK_JobBotMappings_JobTemplates_JobTemplateId] FOREIGN KEY ([JobTemplateId]) REFERENCES [JobTemplates] ([Id]) ON DELETE CASCADE
+                );
+            END
+            """);
+
+        context.Database.ExecuteSqlRaw("""
+            IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'UserNotifications')
+            BEGIN
+                CREATE TABLE [UserNotifications] (
                     [Id] int NOT NULL IDENTITY,
                     [BotId] int NOT NULL,
                     [TelegramId] bigint NOT NULL,
@@ -162,8 +200,8 @@ using (var scope = app.Services.CreateScope())
                     [Sent] bit NOT NULL DEFAULT 0,
                     [CreatedAt] datetime2 NOT NULL,
                     [SentAt] datetime2 NULL,
-                    CONSTRAINT [PK_BotNotifications] PRIMARY KEY ([Id]),
-                    CONSTRAINT [FK_BotNotifications_TelegramBots_BotId] FOREIGN KEY ([BotId]) REFERENCES [TelegramBots] ([Id]) ON DELETE CASCADE
+                    CONSTRAINT [PK_UserNotifications] PRIMARY KEY ([Id]),
+                    CONSTRAINT [FK_UserNotifications_TelegramBots_BotId] FOREIGN KEY ([BotId]) REFERENCES [TelegramBots] ([Id])
                 );
             END
             """);

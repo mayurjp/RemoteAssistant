@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace RemoteAssistant.Core.Database;
 
-public class PendingRegistration
+public class RegistrationRequest
 {
     [Key]
     public int Id { get; set; }

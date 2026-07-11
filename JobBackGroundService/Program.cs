@@ -9,6 +9,8 @@ builder.Services.AddDbContext<SchedulerDbContext>(options =>
     options.UseSqlServer(connectionString), ServiceLifetime.Transient);
 
 builder.Services.AddHttpClient();
+
+builder.Services.AddSingleton<IJobExecutor, KiteDataLoadJob>();
 builder.Services.AddHostedService<JobExecutionService>();
 
 var host = builder.Build();

@@ -68,12 +68,12 @@ export class ApiService {
     return this.http.delete<any>(`${this.baseUrl}/bots/${id}`);
   }
 
-  getBotRegistrations(botId: number): Observable<BotRegistration[]> {
-    return this.http.get<BotRegistration[]>(`${this.baseUrl}/bots/${botId}/registrations`);
+  getBotRegistrations(botId: number): Observable<UserMembership[]> {
+    return this.http.get<UserMembership[]>(`${this.baseUrl}/bots/${botId}/registrations`);
   }
 
-  getPendingRegistrations(botId: number): Observable<PendingRegistration[]> {
-    return this.http.get<PendingRegistration[]>(`${this.baseUrl}/bots/${botId}/pending`);
+  getRegistrationRequests(botId: number): Observable<RegistrationRequest[]> {
+    return this.http.get<RegistrationRequest[]>(`${this.baseUrl}/bots/${botId}/pending`);
   }
 
   approveRegistration(botId: number, id: number): Observable<any> {
@@ -91,17 +91,34 @@ export class ApiService {
   unregisterUser(botId: number, regId: number): Observable<any> {
     return this.http.post<any>(`${this.baseUrl}/bots/${botId}/registrations/${regId}/unregister`, {});
   }
+
+  getJobTypes(): Observable<JobTypeInfo[]> {
+    return this.http.get<JobTypeInfo[]>(`${this.baseUrl}/job-types`);
+  }
+
+  getBotJobs(botId: number): Observable<number[]> {
+    return this.http.get<number[]>(`${this.baseUrl}/bots/${botId}/jobs`);
+  }
+
+  setBotJobs(botId: number, jobTemplateIds: number[]): Observable<any> {
+    return this.http.put<any>(`${this.baseUrl}/bots/${botId}/jobs`, jobTemplateIds);
+  }
 }
 
-export interface BotRegistration {
+export interface JobTypeInfo {
+  id: number;
+  jobType: string;
+  name: string;
+  description: string;
+}
+
+export interface UserMembership {
   id: number;
   telegramId: number;
-  isActive: boolean;
   registeredAt: string;
-  unregisteredAt: string | null;
 }
 
-export interface PendingRegistration {
+export interface RegistrationRequest {
   id: number;
   telegramId: number;
   status: string;

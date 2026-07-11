@@ -101,7 +101,7 @@ public class TelegramBotService : BackgroundService
             using var scope = _serviceProvider.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<SchedulerDbContext>();
 
-            var notifications = await context.BotNotifications
+            var notifications = await context.UserNotifications
                 .Where(n => !n.Sent && n.BotId == _activeBotId)
                 .OrderBy(n => n.CreatedAt)
                 .Take(20)
@@ -164,7 +164,9 @@ public class TelegramBotService : BackgroundService
                         "Welcome to *" + _activeBotName + "*.\n\n" +
                         "`/register` — Request access to this bot\n" +
                         "`/unregister` — Unregister from this bot\n" +
-                        "`/status` — Check your registration status",
+                        "`/status` — Check your registration status\n" +
+                        "`/jobs` — List available job commands\n" +
+                        "`/kitedata` — Fetch OHLC candle data",
                         parseMode: ParseMode.Markdown, cancellationToken: ct);
                     break;
 
@@ -180,8 +182,18 @@ public class TelegramBotService : BackgroundService
                     await HandleStatusAsync(botClient, message, ct);
                     break;
 
+                case "/jobs":
+                    await HandleJobsListAsync(botClient, message, ct);
+                    break;
+
+                case "/kitedata":
+                    await HandleRunJobAsync(botClient, message, "KiteDataLoad", ct);
+                    break;
+
                 default:
-                    await HandleJobCommandAsync(botClient, message, command, parts, ct);
+                    await botClient.SendTextMessageAsync(message.Chat.Id,
+                        "Unknown command. Use `/help` to see available commands.",
+                        parseMode: ParseMode.Markdown, cancellationToken: ct);
                     break;
             }
         }
@@ -199,16 +211,16 @@ public class TelegramBotService : BackgroundService
         var context = scope.ServiceProvider.GetRequiredService<SchedulerDbContext>();
         var botId = _activeBotId.Value;
 
-        var existingApproved = await context.BotRegistrations
-            .AnyAsync(r => r.TelegramId == message.Chat.Id && r.BotId == botId && r.IsActive, ct);
+        var alreadyRegistered = await context.UserMemberships
+            .AnyAsync(r => r.TelegramId == message.Chat.Id && r.BotId == botId, ct);
 
-        if (existingApproved)
+        if (alreadyRegistered)
         {
             await botClient.SendTextMessageAsync(message.Chat.Id, "You are already registered to this bot.", cancellationToken: ct);
             return;
         }
 
-        var pending = await context.PendingRegistrations
+        var pending = await context.RegistrationRequests
             .FirstOrDefaultAsync(r => r.TelegramId == message.Chat.Id && r.BotId == botId && r.Status == "Pending", ct);
 
         if (pending != null)
@@ -217,7 +229,7 @@ public class TelegramBotService : BackgroundService
             return;
         }
 
-        context.PendingRegistrations.Add(new PendingRegistration
+        context.RegistrationRequests.Add(new RegistrationRequest
         {
             TelegramId = message.Chat.Id,
             BotId = botId,
@@ -237,8 +249,8 @@ public class TelegramBotService : BackgroundService
         var context = scope.ServiceProvider.GetRequiredService<SchedulerDbContext>();
         var botId = _activeBotId.Value;
 
-        var reg = await context.BotRegistrations
-            .FirstOrDefaultAsync(r => r.TelegramId == message.Chat.Id && r.BotId == botId && r.IsActive, ct);
+        var reg = await context.UserMemberships
+            .FirstOrDefaultAsync(r => r.TelegramId == message.Chat.Id && r.BotId == botId, ct);
 
         if (reg == null)
         {
@@ -246,9 +258,7 @@ public class TelegramBotService : BackgroundService
             return;
         }
 
-        reg.IsActive = false;
-        reg.UnregisteredAt = DateTime.UtcNow;
-        context.BotRegistrations.Update(reg);
+        context.UserMemberships.Remove(reg);
         await context.SaveChangesAsync(ct);
 
         await botClient.SendTextMessageAsync(message.Chat.Id, "You have been unregistered from this bot.", cancellationToken: ct);
@@ -262,25 +272,16 @@ public class TelegramBotService : BackgroundService
         var context = scope.ServiceProvider.GetRequiredService<SchedulerDbContext>();
         var botId = _activeBotId.Value;
 
-        var reg = await context.BotRegistrations
+        var reg = await context.UserMemberships
             .FirstOrDefaultAsync(r => r.TelegramId == message.Chat.Id && r.BotId == botId, ct);
 
-        if (reg != null && reg.IsActive)
+        if (reg != null)
         {
             await botClient.SendTextMessageAsync(message.Chat.Id, "Status: Registered since " + reg.RegisteredAt.ToString("g") + ".", cancellationToken: ct);
             return;
         }
 
-        var unregistered = await context.BotRegistrations
-            .FirstOrDefaultAsync(r => r.TelegramId == message.Chat.Id && r.BotId == botId && !r.IsActive, ct);
-
-        if (unregistered != null)
-        {
-            await botClient.SendTextMessageAsync(message.Chat.Id, "Status: Unregistered. Send `/register` to request access again.", cancellationToken: ct);
-            return;
-        }
-
-        var pending = await context.PendingRegistrations
+        var pending = await context.RegistrationRequests
             .OrderByDescending(r => r.RequestedAt)
             .FirstOrDefaultAsync(r => r.TelegramId == message.Chat.Id && r.BotId == botId, ct);
 
@@ -300,7 +301,7 @@ public class TelegramBotService : BackgroundService
         await botClient.SendTextMessageAsync(message.Chat.Id, "Status: Not registered. Send `/register` to request access.", cancellationToken: ct);
     }
 
-    private async Task HandleJobCommandAsync(ITelegramBotClient botClient, Message message, string command, string[] parts, CancellationToken ct)
+    private async Task HandleJobsListAsync(ITelegramBotClient botClient, Message message, CancellationToken ct)
     {
         if (_activeBotId == null) return;
 
@@ -308,27 +309,69 @@ public class TelegramBotService : BackgroundService
         var context = scope.ServiceProvider.GetRequiredService<SchedulerDbContext>();
         var botId = _activeBotId.Value;
 
-        var isRegistered = await context.BotRegistrations
-            .AnyAsync(r => r.TelegramId == message.Chat.Id && r.BotId == botId && r.IsActive, ct);
+        var isRegistered = await context.UserMemberships
+            .AnyAsync(r => r.TelegramId == message.Chat.Id && r.BotId == botId, ct);
 
         if (!isRegistered)
         {
-            await botClient.SendTextMessageAsync(message.Chat.Id, "You must be registered to use commands. Send `/register` first.", cancellationToken: ct);
+            await botClient.SendTextMessageAsync(message.Chat.Id, "You must be registered to see jobs. Send `/register` first.", cancellationToken: ct);
             return;
         }
 
-        context.Jobs.Add(new Job
+        var jobTypes = await context.JobBotMappings
+            .Where(bj => bj.BotId == botId && bj.JobTemplate.IsActive)
+            .Select(bj => bj.JobTemplate.JobType)
+            .ToListAsync(ct);
+
+        if (jobTypes.Count == 0)
+        {
+            await botClient.SendTextMessageAsync(message.Chat.Id, "No jobs are assigned to this bot.", cancellationToken: ct);
+            return;
+        }
+
+        var lines = jobTypes.Select(jt => $"• `/{jt.ToLower()}`");
+        await botClient.SendTextMessageAsync(message.Chat.Id,
+            "Available job commands:\n\n" + string.Join("\n", lines),
+            parseMode: ParseMode.Markdown, cancellationToken: ct);
+    }
+
+    private async Task HandleRunJobAsync(ITelegramBotClient botClient, Message message, string jobType, CancellationToken ct)
+    {
+        if (_activeBotId == null) return;
+
+        using var scope = _serviceProvider.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<SchedulerDbContext>();
+        var botId = _activeBotId.Value;
+
+        var isRegistered = await context.UserMemberships
+            .AnyAsync(r => r.TelegramId == message.Chat.Id && r.BotId == botId, ct);
+
+        if (!isRegistered)
+        {
+            await botClient.SendTextMessageAsync(message.Chat.Id, "You must be registered to run jobs. Send `/register` first.", cancellationToken: ct);
+            return;
+        }
+
+        var isAssigned = await context.JobBotMappings
+            .AnyAsync(bj => bj.BotId == botId && bj.JobTemplate.JobType == jobType && bj.JobTemplate.IsActive, ct);
+
+        if (!isAssigned)
+        {
+            await botClient.SendTextMessageAsync(message.Chat.Id, $"Job `{jobType}` is not available for this bot. Use `/jobs` to see available jobs.", parseMode: ParseMode.Markdown, cancellationToken: ct);
+            return;
+        }
+
+        context.JobRequests.Add(new JobRequest
         {
             BotId = botId,
+            JobType = jobType,
             TelegramId = message.Chat.Id,
-            Command = command,
-            Payload = parts.Length > 1 ? string.Join(" ", parts.Skip(1)) : null,
             Status = "Pending",
             CreatedAt = DateTime.UtcNow
         });
         await context.SaveChangesAsync(ct);
 
-        await botClient.SendTextMessageAsync(message.Chat.Id, $"Job queued: {command}. You will be notified when complete.", cancellationToken: ct);
+        await botClient.SendTextMessageAsync(message.Chat.Id, $"Job queued: *{jobType}*. You will be notified when complete.", parseMode: ParseMode.Markdown, cancellationToken: ct);
     }
 
     private Task HandleErrorAsync(ITelegramBotClient botClient, Exception exception, CancellationToken ct)

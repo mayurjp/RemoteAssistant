@@ -328,21 +328,19 @@ public class AdminController : ControllerBase
     }
 
     [HttpGet("bots/{id}/registrations")]
-    public async Task<IActionResult> GetBotRegistrations(int id)
+    public async Task<IActionResult> GetUserMemberships(int id)
     {
         var exists = await _context.TelegramBots.AnyAsync(b => b.Id == id);
         if (!exists) return NotFound("Bot not found.");
 
-        var registrations = await _context.BotRegistrations
+        var registrations = await _context.UserMemberships
             .Where(r => r.BotId == id)
             .OrderByDescending(r => r.RegisteredAt)
             .Select(r => new
             {
                 r.Id,
                 r.TelegramId,
-                r.IsActive,
-                r.RegisteredAt,
-                r.UnregisteredAt
+                r.RegisteredAt
             })
             .ToListAsync();
 
@@ -350,12 +348,12 @@ public class AdminController : ControllerBase
     }
 
     [HttpGet("bots/{id}/pending")]
-    public async Task<IActionResult> GetPendingRegistrations(int id)
+    public async Task<IActionResult> GetRegistrationRequests(int id)
     {
         var exists = await _context.TelegramBots.AnyAsync(b => b.Id == id);
         if (!exists) return NotFound("Bot not found.");
 
-        var pending = await _context.PendingRegistrations
+        var pending = await _context.RegistrationRequests
             .Where(r => r.BotId == id)
             .OrderByDescending(r => r.RequestedAt)
             .Select(r => new
@@ -375,7 +373,7 @@ public class AdminController : ControllerBase
     [HttpPost("bots/{botId}/pending/{id}/approve")]
     public async Task<IActionResult> ApproveRegistration(int botId, int id)
     {
-        var pending = await _context.PendingRegistrations
+        var pending = await _context.RegistrationRequests
             .FirstOrDefaultAsync(r => r.Id == id && r.BotId == botId);
 
         if (pending == null) return NotFound("Pending registration not found.");
@@ -384,29 +382,22 @@ public class AdminController : ControllerBase
         pending.Status = "Approved";
         pending.ReviewedAt = DateTime.UtcNow;
         pending.ReviewedBy = User.FindFirst(ClaimTypes.Email)?.Value ?? "unknown";
-        _context.PendingRegistrations.Update(pending);
+        _context.RegistrationRequests.Update(pending);
 
-        var existing = await _context.BotRegistrations
+        var existing = await _context.UserMemberships
             .FirstOrDefaultAsync(r => r.TelegramId == pending.TelegramId && r.BotId == botId);
 
-        if (existing != null)
+        if (existing == null)
         {
-            existing.IsActive = true;
-            existing.UnregisteredAt = null;
-            _context.BotRegistrations.Update(existing);
-        }
-        else
-        {
-            _context.BotRegistrations.Add(new BotRegistration
+            _context.UserMemberships.Add(new UserMembership
             {
                 TelegramId = pending.TelegramId,
                 BotId = botId,
-                IsActive = true,
                 RegisteredAt = DateTime.UtcNow
             });
         }
 
-        _context.BotNotifications.Add(new BotNotification
+        _context.UserNotifications.Add(new UserNotification
         {
             BotId = botId,
             TelegramId = pending.TelegramId,
@@ -422,7 +413,7 @@ public class AdminController : ControllerBase
     [HttpPost("bots/{botId}/pending/{id}/reject")]
     public async Task<IActionResult> RejectRegistration(int botId, int id)
     {
-        var pending = await _context.PendingRegistrations
+        var pending = await _context.RegistrationRequests
             .FirstOrDefaultAsync(r => r.Id == id && r.BotId == botId);
 
         if (pending == null) return NotFound("Pending registration not found.");
@@ -431,9 +422,9 @@ public class AdminController : ControllerBase
         pending.Status = "Rejected";
         pending.ReviewedAt = DateTime.UtcNow;
         pending.ReviewedBy = User.FindFirst(ClaimTypes.Email)?.Value ?? "unknown";
-        _context.PendingRegistrations.Update(pending);
+        _context.RegistrationRequests.Update(pending);
 
-        _context.BotNotifications.Add(new BotNotification
+        _context.UserNotifications.Add(new UserNotification
         {
             BotId = botId,
             TelegramId = pending.TelegramId,
@@ -449,7 +440,7 @@ public class AdminController : ControllerBase
     [HttpPost("bots/{botId}/pending/{id}/reapprove")]
     public async Task<IActionResult> ReapproveRegistration(int botId, int id)
     {
-        var pending = await _context.PendingRegistrations
+        var pending = await _context.RegistrationRequests
             .FirstOrDefaultAsync(r => r.Id == id && r.BotId == botId);
 
         if (pending == null) return NotFound("Pending registration not found.");
@@ -458,29 +449,22 @@ public class AdminController : ControllerBase
         pending.Status = "Approved";
         pending.ReviewedAt = DateTime.UtcNow;
         pending.ReviewedBy = User.FindFirst(ClaimTypes.Email)?.Value ?? "unknown";
-        _context.PendingRegistrations.Update(pending);
+        _context.RegistrationRequests.Update(pending);
 
-        var existing = await _context.BotRegistrations
+        var existing = await _context.UserMemberships
             .FirstOrDefaultAsync(r => r.TelegramId == pending.TelegramId && r.BotId == botId);
 
-        if (existing != null)
+        if (existing == null)
         {
-            existing.IsActive = true;
-            existing.UnregisteredAt = null;
-            _context.BotRegistrations.Update(existing);
-        }
-        else
-        {
-            _context.BotRegistrations.Add(new BotRegistration
+            _context.UserMemberships.Add(new UserMembership
             {
                 TelegramId = pending.TelegramId,
                 BotId = botId,
-                IsActive = true,
                 RegisteredAt = DateTime.UtcNow
             });
         }
 
-        _context.BotNotifications.Add(new BotNotification
+        _context.UserNotifications.Add(new UserNotification
         {
             BotId = botId,
             TelegramId = pending.TelegramId,
@@ -493,20 +477,55 @@ public class AdminController : ControllerBase
         return Ok(new { Message = "Registration re-approved." });
     }
 
+    [HttpGet("job-types")]
+    public async Task<IActionResult> GetJobTypes()
+    {
+        var jobs = await _context.JobTemplates
+            .Where(j => j.IsActive)
+            .OrderBy(j => j.Name)
+            .Select(j => new { j.Id, j.JobType, j.Name, j.Description })
+            .ToListAsync();
+
+        return Ok(jobs);
+    }
+
+    [HttpGet("bots/{botId}/jobs")]
+    public async Task<IActionResult> GetBotJobs(int botId)
+    {
+        var jobs = await _context.JobBotMappings
+            .Where(bj => bj.BotId == botId)
+            .Select(bj => bj.JobTemplateId)
+            .ToListAsync();
+
+        return Ok(jobs);
+    }
+
+    [HttpPut("bots/{botId}/jobs")]
+    public async Task<IActionResult> SetBotJobs(int botId, [FromBody] int[] jobTemplateIds)
+    {
+        var existing = await _context.JobBotMappings.Where(bj => bj.BotId == botId).ToListAsync();
+        _context.JobBotMappings.RemoveRange(existing);
+
+        foreach (var jtId in jobTemplateIds.Distinct())
+        {
+            _context.JobBotMappings.Add(new JobBotMapping { BotId = botId, JobTemplateId = jtId });
+        }
+
+        await _context.SaveChangesAsync();
+        return Ok(new { Message = "Bot jobs updated." });
+    }
+
     [HttpPost("bots/{botId}/registrations/{id}/unregister")]
     public async Task<IActionResult> AdminUnregister(int botId, int id)
     {
-        var reg = await _context.BotRegistrations
+        var reg = await _context.UserMemberships
             .FirstOrDefaultAsync(r => r.Id == id && r.BotId == botId);
 
         if (reg == null) return NotFound("Registration not found.");
-        if (!reg.IsActive) return BadRequest("User is already unregistered.");
 
-        reg.IsActive = false;
-        reg.UnregisteredAt = DateTime.UtcNow;
-        _context.BotRegistrations.Update(reg);
+        _context.UserMemberships.Remove(reg);
 
-        _context.BotNotifications.Add(new BotNotification
+        _context.UserNotifications.Add(new UserNotification
         {
             BotId = botId,
             TelegramId = reg.TelegramId,

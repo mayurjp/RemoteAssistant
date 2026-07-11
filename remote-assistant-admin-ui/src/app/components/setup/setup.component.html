@@ -39,6 +39,7 @@
               </div>
             </div>
             <div class="bot-actions">
+              <button (click)="openJobAssignment(bot)" class="btn btn-sm btn-outline">Jobs</button>
               <button (click)="editBot(bot)" class="btn btn-sm btn-outline">Edit</button>
               <button (click)="toggleBot(bot)" class="btn btn-sm" [ngClass]="bot.isActive ? 'btn-outline' : 'btn-primary'">
                 {{ bot.isActive ? 'Disable' : 'Enable' }}
@@ -65,10 +66,7 @@
             <div class="reg-item" *ngFor="let reg of registrations[bot.id]">
               <span class="reg-id">Telegram ID: {{ reg.telegramId }}</span>
               <span class="reg-date">Since {{ reg.registeredAt | date:'medium' }}</span>
-              <span class="reg-status" [ngClass]="reg.isActive ? 'active' : 'inactive'">
-                {{ reg.isActive ? 'Active' : 'Unregistered' }}
-              </span>
-              <button *ngIf="reg.isActive" (click)="unregisterUser(bot.id, reg.id)" class="btn btn-sm btn-danger">Unregister</button>
+              <button (click)="unregisterUser(bot.id, reg.id)" class="btn btn-sm btn-danger">Unregister</button>
             </div>
           </div>
         </ng-container>
@@ -104,6 +102,20 @@
       </div>
 
       <button *ngIf="!showForm" (click)="showAddForm()" class="btn btn-primary">+ Add Bot</button>
+
+      <div *ngIf="showJobPanel" class="job-panel">
+        <h3>Assign Job Templates to Bot</h3>
+        <div class="job-check-item" *ngFor="let jt of jobTypes">
+          <label>
+            <input type="checkbox" [checked]="botJobTypes.includes(jt.id)" (change)="toggleBotJobType(jt.id)" />
+            <strong>{{ jt.name }}</strong> — {{ jt.description }}
+          </label>
+        </div>
+        <div class="form-actions" style="margin-top: 16px;">
+          <button (click)="saveBotJobs()" class="btn btn-primary">Save Assignments</button>
+          <button (click)="showJobPanel = false" class="btn btn-outline">Cancel</button>
+        </div>
+      </div>
     </div>
   </div>
 </div>

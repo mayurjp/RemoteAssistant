@@ -550,6 +550,37 @@
   color: #f56565;
 }
 
+.job-panel {
+  margin-top: 20px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+}
+
+.job-panel h3 {
+  margin: 0 0 16px 0;
+  font-size: 16px;
+  color: #f1f1f1;
+}
+
+.job-check-item {
+  padding: 8px 0;
+  font-size: 14px;
+  color: #cbd5e0;
+}
+
+.job-check-item input {
+  margin-right: 8px;
+  accent-color: #8a2be2;
+}
+
+.job-type-tag {
+  font-size: 11px;
+  color: #6b7280;
+  margin-left: 6px;
+}
+
 @media (max-width: 768px) {
   .setup-grid {
     grid-template-columns: 1fr;

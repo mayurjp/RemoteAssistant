@@ -2,7 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
-import { ApiService, ConfigStatus, TelegramBot, BotRegistration, PendingRegistration } from '../../services/api.service';
+import { ApiService, ConfigStatus, TelegramBot, UserMembership, RegistrationRequest, JobTypeInfo } from '../../services/api.service';
 import { AuthService } from '../../services/auth.service';
 
 @Component({
@@ -23,9 +23,14 @@ export class SetupComponent implements OnInit {
   };
 
   bots: TelegramBot[] = [];
-  registrations: { [botId: number]: BotRegistration[] } = {};
-  pending: { [botId: number]: PendingRegistration[] } = {};
+  registrations: { [botId: number]: UserMembership[] } = {};
+  pending: { [botId: number]: RegistrationRequest[] } = {};
   expandedBotId: number | null = null;
+
+  jobTypes: JobTypeInfo[] = [];
+  showJobPanel = false;
+  editingBotJobId: number | null = null;
+  botJobTypes: number[] = [];
 
   showForm = false;
   editingBotId: number | null = null;
@@ -53,6 +58,11 @@ export class SetupComponent implements OnInit {
       next: (bots) => this.bots = bots,
       error: (err) => console.error('Failed to load bots', err)
     });
+
+    this.apiService.getJobTypes().subscribe({
+      next: (types) => this.jobTypes = types,
+      error: (err) => console.error('Failed to load job types', err)
+    });
   }
 
   toggleRegistrations(botId: number) {
@@ -65,7 +75,7 @@ export class SetupComponent implements OnInit {
       next: (regs) => this.registrations[botId] = regs,
       error: (err) => console.error('Failed to load registrations', err)
     });
-    this.apiService.getPendingRegistrations(botId).subscribe({
+    this.apiService.getRegistrationRequests(botId).subscribe({
       next: (pending) => this.pending[botId] = pending,
       error: (err) => console.error('Failed to load pending registrations', err)
     });
@@ -106,7 +116,7 @@ export class SetupComponent implements OnInit {
       next: (regs) => this.registrations[botId] = regs,
       error: (err) => console.error(err)
     });
-    this.apiService.getPendingRegistrations(botId).subscribe({
+    this.apiService.getRegistrationRequests(botId).subscribe({
       next: (pending) => this.pending[botId] = pending,
       error: (err) => console.error(err)
     });
@@ -193,6 +203,33 @@ export class SetupComponent implements OnInit {
         this.botMessage = 'Failed to delete: ' + (err.error?.message || err.message);
         this.botError = true;
       }
+    });
+  }
+
+  openJobAssignment(bot: TelegramBot) {
+    this.editingBotJobId = bot.id;
+    this.showJobPanel = true;
+    this.apiService.getBotJobs(bot.id).subscribe({
+      next: (types) => this.botJobTypes = [...types],
+      error: () => this.botJobTypes = []
+    });
+  }
+
+  toggleBotJobType(jobId: number) {
+    const idx = this.botJobTypes.indexOf(jobId);
+    if (idx >= 0) this.botJobTypes.splice(idx, 1);
+    else this.botJobTypes.push(jobId);
+  }
+
+  saveBotJobs() {
+    if (this.editingBotJobId == null) return;
+    this.apiService.setBotJobs(this.editingBotJobId, this.botJobTypes).subscribe({
+      next: () => {
+        this.showJobPanel = false;
+        this.editingBotJobId = null;
+        this.loadData();
+      },
+      error: (err) => alert('Failed: ' + (err.error?.message || err.message))
     });
   }
 

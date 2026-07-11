@@ -28,21 +28,47 @@ public class JobExecutionService : BackgroundService
                 using var scope = _serviceProvider.CreateScope();
                 var context = scope.ServiceProvider.GetRequiredService<SchedulerDbContext>();
 
-                var pendingJobs = await context.Jobs
+                var pendingJobRequests = await context.JobRequests
                     .Where(j => j.Status == "Pending")
                     .OrderBy(j => j.CreatedAt)
                     .Take(5)
                     .ToListAsync(stoppingToken);
 
-                foreach (var job in pendingJobs)
+                var executors = scope.ServiceProvider.GetServices<IJobExecutor>();
+
+                foreach (var job in pendingJobRequests)
                 {
-                    _logger.LogInformation("Executing job {JobId} for bot {BotId}", job.Id, job.BotId);
-                    job.Status = "Completed";
-                    job.CompletedAt = DateTime.UtcNow;
-                    // TODO: Actual job execution logic
+                    try
+                    {
+                        var executor = executors.FirstOrDefault(e => e.JobType == job.JobType);
+
+                        if (executor == null)
+                        {
+                            _logger.LogWarning("No executor for JobType {JobType} (Job {JobId})", job.JobType, job.Id);
+                            job.Status = "Failed";
+                            job.Result = $"No executor registered for job type: {job.JobType}";
+                            job.CompletedAt = DateTime.UtcNow;
+                            continue;
+                        }
+
+                        _logger.LogInformation("Executing job {JobId} ({JobType}) for bot {BotId}", job.Id, job.JobType, job.BotId);
+
+                        var result = await executor.ExecuteAsync(job, stoppingToken);
+
+                        job.Status = "Completed";
+                        job.Result = result;
+                        job.CompletedAt = DateTime.UtcNow;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Job {JobId} failed", job.Id);
+                        job.Status = "Failed";
+                        job.Result = ex.Message;
+                        job.CompletedAt = DateTime.UtcNow;
+                    }
                 }
 
-                if (pendingJobs.Count > 0)
+                if (pendingJobRequests.Count > 0)
                 {
                     await context.SaveChangesAsync(stoppingToken);
                 }
