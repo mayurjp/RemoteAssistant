@@ -21,6 +21,7 @@ public class TelegramBotService : BackgroundService
 
     private string? _activeToken;
     private int? _activeBotId;
+    private string _activeBotName = "Bot";
     private TelegramBotClient? _botClient;
     private CancellationTokenSource? _botCts;
 
@@ -48,6 +49,7 @@ public class TelegramBotService : BackgroundService
                         .FirstOrDefaultAsync(b => b.IsActive, stoppingToken);
                     dbToken = activeBot?.Token;
                     dbBotId = activeBot?.Id;
+                    _activeBotName = activeBot?.Name ?? "Bot";
                 }
 
                 if (string.IsNullOrEmpty(dbToken) || dbBotId == null)
@@ -159,7 +161,7 @@ public class TelegramBotService : BackgroundService
                 case "/start":
                 case "/help":
                     await botClient.SendTextMessageAsync(message.Chat.Id,
-                        "Welcome to Bot ID " + _activeBotId + ".\n\n" +
+                        "Welcome to *" + _activeBotName + "*.\n\n" +
                         "`/register` — Request access to this bot\n" +
                         "`/unregister` — Unregister from this bot\n" +
                         "`/status` — Check your registration status",
