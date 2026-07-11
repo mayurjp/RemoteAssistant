@@ -1,0 +1,48 @@
+# === .NET / Visual Studio ===
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleasePublic/
+x64/
+x86/
+bld/
+[Bb]in/
+[Oo]bj/
+[Log]/
+[Ll]og/
+
+# Visual Studio Cache & Settings
+.vs/
+*.user
+*.userosscache
+*.sln.docstates
+.slnx.cache
+
+# User secrets and private configs
+appsettings.local.json
+appsettings.Development.json
+
+# === Node / Angular ===
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.angular/
+dist/
+.editorconfig
+
+# === OS / IDEs ===
+.idea/
+.vscode/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# === Database ===
+*.mdf
+*.ldf
+*.sdf

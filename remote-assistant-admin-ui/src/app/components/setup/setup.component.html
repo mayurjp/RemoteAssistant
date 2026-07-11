@@ -1,0 +1,112 @@
+<div class="setup-container">
+  <div class="header">
+    <div class="brand">
+      <span class="logo">⚡</span>
+      <h1>RemoteAssistant Setup</h1>
+    </div>
+    <a routerLink="/dashboard" class="btn-nav">← Back to Dashboard</a>
+  </div>
+
+  <div class="setup-grid">
+    <!-- Telegram Configuration -->
+    <div class="card glass">
+      <div class="card-header">
+        <span class="step-num">1</span>
+        <h2>Telegram Bot Config</h2>
+        <span class="badge" [ngClass]="status.hasTelegramBotToken ? 'success' : 'warning'">
+          {{ status.hasTelegramBotToken ? 'Connected' : 'Missing' }}
+        </span>
+      </div>
+      <p class="description">Paste your Telegram Bot Token generated from &#64;BotFather. This enables the bot to handle user registrations.</p>
+      
+      <div class="form-group">
+        <label for="telegramToken">Bot Token</label>
+        <input 
+          type="password" 
+          id="telegramToken" 
+          [(ngModel)]="telegramToken" 
+          placeholder="e.g. 123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"
+          class="form-control"
+        />
+      </div>
+
+      <button (click)='saveTelegram()' class="btn btn-primary">Save Bot Token</button>
+      <div *ngIf="telegramMessage" class="alert" [ngClass]="telegramError ? 'alert-danger' : 'alert-success'">
+        {{ telegramMessage }}
+      </div>
+    </div>
+
+    <!-- Google OAuth Configuration -->
+    <div class="card glass">
+      <div class="card-header">
+        <span class="step-num">2</span>
+        <h2>Google OAuth Settings</h2>
+        <span class="badge" [ngClass]="status.hasGoogleClientId && status.hasGoogleClientSecret ? 'success' : 'warning'">
+          {{ status.hasGoogleClientId && status.hasGoogleClientSecret ? 'Configured' : 'Missing' }}
+        </span>
+      </div>
+      <p class="description">Enter the OAuth 2.0 Web Application credentials from your Google Cloud Console. Set Redirect URI to <code>http://localhost:4200/oauth-callback</code>.</p>
+
+      <div class="form-group">
+        <label for="googleClientId">Client ID</label>
+        <input 
+          type="text" 
+          id="googleClientId" 
+          [(ngModel)]="googleClientId" 
+          placeholder="xxxxx.apps.googleusercontent.com"
+          class="form-control"
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="googleClientSecret">Client Secret</label>
+        <input 
+          type="password" 
+          id="googleClientSecret" 
+          [(ngModel)]="googleClientSecret" 
+          placeholder="GOCSPX-xxxxxxxxxxxxxxxxx"
+          class="form-control"
+        />
+      </div>
+
+      <button (click)='saveGoogle()' class="btn btn-primary">Save Google Credentials</button>
+      <div *ngIf="googleMessage" class="alert" [ngClass]="googleError ? 'alert-danger' : 'alert-success'">
+        {{ googleMessage }}
+      </div>
+    </div>
+
+    <!-- Gmail Authorization (Conditional on Google Creds) -->
+    <div class="card glass full-width">
+      <div class="card-header">
+        <span class="step-num">3</span>
+        <h2>Gmail Account Authorization</h2>
+        <span class="badge" [ngClass]="status.hasGoogleRefreshToken ? 'success' : 'danger'">
+          {{ status.hasGoogleRefreshToken ? 'Authorized' : 'Unauthorized' }}
+        </span>
+      </div>
+      <p class="description">Authorize RemoteAssistant to send OTP verification emails from your Google account. This uses secure OAuth2 without storing your account password.</p>
+
+      <div class="auth-status-box" *ngIf="status.hasGoogleRefreshToken">
+        <span class="check-icon">✓</span>
+        <div>
+          <h4>Gmail Service Active</h4>
+          <p>Sending emails on behalf of: <strong>{{ status.googleAdminEmail || 'Configured Admin Account' }}</strong></p>
+        </div>
+      </div>
+
+      <div class="action-box">
+        <button 
+          (click)='startOAuthRedirect()' 
+          [disabled]="!status.hasGoogleClientId && !googleClientId"
+          class="btn btn-oauth"
+          [ngClass]="status.hasGoogleRefreshToken ? 'btn-secondary' : 'btn-accent'"
+        >
+          🔑 {{ status.hasGoogleRefreshToken ? 'Re-authorize Gmail Account' : 'Authorize Gmail Account' }}
+        </button>
+        <p class="note" *ngIf="!status.hasGoogleClientId && !googleClientId">
+          ⚠️ Save Google credentials (Step 2) first before authorizing.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>

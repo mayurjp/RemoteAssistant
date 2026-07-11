@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="RemoteAssistant.Core/RemoteAssistant.Core.csproj" />
+  <Project Path="RemoteAssistant.WebApi/RemoteAssistant.WebApi.csproj" />
+  <Project Path="RemoteAssistant.Worker/RemoteAssistant.Worker.csproj" />
+</Solution>
