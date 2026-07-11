@@ -71,9 +71,20 @@ sequenceDiagram
 
 | Column | Type | Nullable | Description |
 |--------|------|----------|-------------|
-| `Key` | `nvarchar(100)` | NOT NULL (PK) | Setting key (e.g. `GoogleClientId`) |
+| `Key` | `nvarchar(100)` | NOT NULL (PK) | Setting key (e.g. `TelegramBotToken`) |
 | `Value` | `nvarchar(max)` | NULL | Setting value |
 | `UpdatedAt` | `datetime2` | NOT NULL | Last modified timestamp |
+
+### `OAuthProviders` Table
+
+| Column | Type | Nullable | Description |
+|--------|------|----------|-------------|
+| `Provider` | `nvarchar(50)` | NOT NULL (PK) | Provider name (e.g. `Google`) |
+| `ClientId` | `nvarchar(500)` | NULL | OAuth Client ID |
+| `ClientSecret` | `nvarchar(500)` | NULL | OAuth Client Secret |
+| `UpdatedAt` | `datetime2` | NOT NULL | Last modified timestamp |
+
+> Designed for multi-provider support — add rows for GitHub, Microsoft, etc. as needed.
 
 ---
 
@@ -227,4 +238,4 @@ export const environment = {
 }
 ```
 
-> Credentials can be set in `appsettings.json` (server-side fallback) **or** via the login page UI form (saved to the `SystemSettings` database table). The server checks the database first, then falls back to config.
+> Google OAuth credentials can be set in `appsettings.json` (server-side fallback) **or** via the login page UI form (saved to the `OAuthProviders` database table keyed by `Provider = "Google"`). The server checks the database first, then falls back to config.

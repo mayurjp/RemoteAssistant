@@ -18,6 +18,7 @@ export class DashboardComponent implements OnInit {
     hasGoogleClientSecret: false,
     hasGoogleRefreshToken: false,
     hasTelegramBotToken: false,
+    telegramBotCount: 0,
     googleAdminEmail: null
   };
 

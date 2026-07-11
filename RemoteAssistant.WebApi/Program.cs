@@ -68,6 +68,36 @@ using (var scope = app.Services.CreateScope())
     try
     {
         context.Database.EnsureCreated();
+
+        context.Database.ExecuteSqlRaw("""
+            IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'OAuthProviders')
+            BEGIN
+                CREATE TABLE [OAuthProviders] (
+                    [Provider] nvarchar(50) NOT NULL,
+                    [ClientId] nvarchar(500) NULL,
+                    [ClientSecret] nvarchar(500) NULL,
+                    [UpdatedAt] datetime2 NOT NULL,
+                    CONSTRAINT [PK_OAuthProviders] PRIMARY KEY ([Provider])
+                );
+            END
+            """);
+
+        context.Database.ExecuteSqlRaw("""
+            IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'TelegramBots')
+            BEGIN
+                CREATE TABLE [TelegramBots] (
+                    [Id] int NOT NULL IDENTITY,
+                    [Name] nvarchar(100) NOT NULL,
+                    [Description] nvarchar(500) NULL,
+                    [Token] nvarchar(500) NOT NULL,
+                    [IsActive] bit NOT NULL DEFAULT 1,
+                    [CreatedAt] datetime2 NOT NULL,
+                    [UpdatedAt] datetime2 NOT NULL,
+                    CONSTRAINT [PK_TelegramBots] PRIMARY KEY ([Id])
+                );
+            END
+            """);
+
         Console.WriteLine("Database and tables verified/created successfully.");
     }
     catch (Exception ex)

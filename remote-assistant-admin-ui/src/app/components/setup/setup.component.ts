@@ -2,7 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
-import { ApiService, ConfigStatus } from '../../services/api.service';
+import { ApiService, ConfigStatus, TelegramBot } from '../../services/api.service';
 
 @Component({
   selector: 'app-setup',
@@ -17,49 +17,120 @@ export class SetupComponent implements OnInit {
     hasGoogleClientSecret: false,
     hasGoogleRefreshToken: false,
     hasTelegramBotToken: false,
+    telegramBotCount: 0,
     googleAdminEmail: null
   };
 
-  telegramToken: string = '';
+  bots: TelegramBot[] = [];
 
-  telegramMessage: string = '';
-  telegramError: boolean = false;
+  showForm = false;
+  editingBotId: number | null = null;
+  botName = '';
+  botDescription = '';
+  botToken = '';
+
+  saving = false;
+  botMessage = '';
+  botError = false;
 
   constructor(private apiService: ApiService) {}
 
   ngOnInit() {
-    this.loadStatus();
+    this.loadData();
   }
 
-  loadStatus() {
+  loadData() {
     this.apiService.getConfigStatus().subscribe({
-      next: (status) => {
-        this.status = status;
+      next: (status) => this.status = status,
+      error: (err) => console.error('Failed to load status', err)
+    });
+
+    this.apiService.getBots().subscribe({
+      next: (bots) => this.bots = bots,
+      error: (err) => console.error('Failed to load bots', err)
+    });
+  }
+
+  showAddForm() {
+    this.showForm = true;
+    this.editingBotId = null;
+    this.botName = '';
+    this.botDescription = '';
+    this.botToken = '';
+    this.botMessage = '';
+  }
+
+  editBot(bot: TelegramBot) {
+    this.showForm = true;
+    this.editingBotId = bot.id;
+    this.botName = bot.name;
+    this.botDescription = bot.description || '';
+    this.botToken = bot.token;
+    this.botMessage = '';
+  }
+
+  cancelForm() {
+    this.showForm = false;
+    this.editingBotId = null;
+    this.botMessage = '';
+  }
+
+  saveBot() {
+    this.botMessage = '';
+
+    if (!this.botName.trim() || !this.botToken.trim()) {
+      this.botMessage = 'Name and Token are required.';
+      this.botError = true;
+      return;
+    }
+
+    const request = {
+      name: this.botName.trim(),
+      description: this.botDescription.trim() || undefined,
+      token: this.botToken.trim()
+    };
+
+    this.saving = true;
+
+    const action = this.editingBotId
+      ? this.apiService.updateBot(this.editingBotId, request)
+      : this.apiService.createBot(request);
+
+    action.subscribe({
+      next: () => {
+        this.botMessage = this.editingBotId ? 'Bot updated successfully!' : 'Bot added successfully!';
+        this.botError = false;
+        this.saving = false;
+        this.cancelForm();
+        this.loadData();
       },
       error: (err) => {
-        console.error('Failed to load status', err);
+        this.botMessage = 'Failed: ' + (err.error?.message || err.message);
+        this.botError = true;
+        this.saving = false;
       }
     });
   }
 
-  saveTelegram() {
-    this.telegramMessage = '';
-    if (!this.telegramToken.trim()) {
-      this.telegramMessage = 'Please enter a valid token.';
-      this.telegramError = true;
-      return;
-    }
+  toggleBot(bot: TelegramBot) {
+    this.apiService.toggleBot(bot.id).subscribe({
+      next: () => this.loadData(),
+      error: (err) => console.error('Failed to toggle bot', err)
+    });
+  }
 
-    this.apiService.saveTelegramToken(this.telegramToken).subscribe({
-      next: (res) => {
-        this.telegramMessage = 'Telegram Token saved successfully!';
-        this.telegramError = false;
-        this.telegramToken = '';
-        this.loadStatus();
+  deleteBot(id: number) {
+    if (!confirm('Are you sure you want to delete this bot?')) return;
+
+    this.apiService.deleteBot(id).subscribe({
+      next: () => {
+        this.botMessage = 'Bot deleted.';
+        this.botError = false;
+        this.loadData();
       },
       error: (err) => {
-        this.telegramMessage = 'Failed to save token: ' + (err.error?.message || err.message);
-        this.telegramError = true;
+        this.botMessage = 'Failed to delete: ' + (err.error?.message || err.message);
+        this.botError = true;
       }
     });
   }

@@ -39,20 +39,22 @@ public class AdminController : ControllerBase
     {
         var settings = await _context.SystemSettings.ToListAsync();
 
-        var clientId = settings.FirstOrDefault(s => s.Key == "GoogleClientId")?.Value 
-                       ?? _configuration["Google:ClientId"];
-        var clientSecret = settings.FirstOrDefault(s => s.Key == "GoogleClientSecret")?.Value 
-                            ?? _configuration["Google:ClientSecret"];
+        var googleProvider = await _context.OAuthProviders.FirstOrDefaultAsync(p => p.Provider == "Google");
+        var clientId = googleProvider?.ClientId ?? _configuration["Google:ClientId"];
+        var clientSecret = googleProvider?.ClientSecret ?? _configuration["Google:ClientSecret"];
         var refreshToken = settings.FirstOrDefault(s => s.Key == "GoogleRefreshToken")?.Value;
         var botToken = settings.FirstOrDefault(s => s.Key == "TelegramBotToken")?.Value;
         var adminEmail = settings.FirstOrDefault(s => s.Key == "GoogleAdminEmail")?.Value;
+
+        var activeBotCount = await _context.TelegramBots.CountAsync(b => b.IsActive);
 
         return Ok(new
         {
             HasGoogleClientId = !string.IsNullOrEmpty(clientId),
             HasGoogleClientSecret = !string.IsNullOrEmpty(clientSecret),
             HasGoogleRefreshToken = !string.IsNullOrEmpty(refreshToken),
-            HasTelegramBotToken = !string.IsNullOrEmpty(botToken),
+            HasTelegramBotToken = !string.IsNullOrEmpty(botToken) || activeBotCount > 0,
+            TelegramBotCount = activeBotCount,
             GoogleAdminEmail = adminEmail
         });
     }
@@ -78,8 +80,27 @@ public class AdminController : ControllerBase
             return BadRequest("Client ID and Client Secret cannot be empty.");
         }
 
-        await SaveSettingAsync("GoogleClientId", request.ClientId.Trim());
-        await SaveSettingAsync("GoogleClientSecret", request.ClientSecret.Trim());
+        var provider = await _context.OAuthProviders.FirstOrDefaultAsync(p => p.Provider == "Google");
+        if (provider == null)
+        {
+            provider = new OAuthProvider
+            {
+                Provider = "Google",
+                ClientId = request.ClientId.Trim(),
+                ClientSecret = request.ClientSecret.Trim(),
+                UpdatedAt = DateTime.UtcNow
+            };
+            _context.OAuthProviders.Add(provider);
+        }
+        else
+        {
+            provider.ClientId = request.ClientId.Trim();
+            provider.ClientSecret = request.ClientSecret.Trim();
+            provider.UpdatedAt = DateTime.UtcNow;
+            _context.OAuthProviders.Update(provider);
+        }
+
+        await _context.SaveChangesAsync();
         return Ok(new { Message = "Google OAuth credentials saved successfully." });
     }
 
@@ -87,9 +108,8 @@ public class AdminController : ControllerBase
     [HttpGet("auth/google-login")]
     public async Task<IActionResult> GoogleLogin()
     {
-        var settings = await _context.SystemSettings.ToListAsync();
-        var clientId = settings.FirstOrDefault(s => s.Key == "GoogleClientId")?.Value 
-                       ?? _configuration["Google:ClientId"];
+        var googleProvider = await _context.OAuthProviders.FirstOrDefaultAsync(p => p.Provider == "Google");
+        var clientId = googleProvider?.ClientId ?? _configuration["Google:ClientId"];
 
         if (string.IsNullOrEmpty(clientId))
         {
@@ -124,11 +144,9 @@ public class AdminController : ControllerBase
             return Redirect($"{frontendBase}/login?error=no_code");
         }
 
-        var settings = await _context.SystemSettings.ToListAsync();
-        var clientId = settings.FirstOrDefault(s => s.Key == "GoogleClientId")?.Value 
-                       ?? _configuration["Google:ClientId"];
-        var clientSecret = settings.FirstOrDefault(s => s.Key == "GoogleClientSecret")?.Value 
-                            ?? _configuration["Google:ClientSecret"];
+        var googleProvider = await _context.OAuthProviders.FirstOrDefaultAsync(p => p.Provider == "Google");
+        var clientId = googleProvider?.ClientId ?? _configuration["Google:ClientId"];
+        var clientSecret = googleProvider?.ClientSecret ?? _configuration["Google:ClientSecret"];
 
         if (string.IsNullOrEmpty(clientId) || string.IsNullOrEmpty(clientSecret))
         {
@@ -239,6 +257,86 @@ public class AdminController : ControllerBase
         return Ok(users);
     }
 
+    [HttpGet("bots")]
+    public async Task<IActionResult> GetBots()
+    {
+        var bots = await _context.TelegramBots
+            .OrderByDescending(b => b.CreatedAt)
+            .ToListAsync();
+
+        return Ok(bots);
+    }
+
+    [HttpPost("bots")]
+    public async Task<IActionResult> CreateBot([FromBody] TelegramBotRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.Token))
+        {
+            return BadRequest("Name and Token are required.");
+        }
+
+        var bot = new TelegramBot
+        {
+            Name = request.Name.Trim(),
+            Description = request.Description?.Trim(),
+            Token = request.Token.Trim(),
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        _context.TelegramBots.Add(bot);
+        await _context.SaveChangesAsync();
+
+        return Ok(bot);
+    }
+
+    [HttpPut("bots/{id}")]
+    public async Task<IActionResult> UpdateBot(int id, [FromBody] TelegramBotRequest request)
+    {
+        var bot = await _context.TelegramBots.FirstOrDefaultAsync(b => b.Id == id);
+        if (bot == null) return NotFound("Bot not found.");
+
+        if (!string.IsNullOrWhiteSpace(request.Name))
+            bot.Name = request.Name.Trim();
+        if (request.Description != null)
+            bot.Description = request.Description.Trim();
+        if (!string.IsNullOrWhiteSpace(request.Token))
+            bot.Token = request.Token.Trim();
+        bot.UpdatedAt = DateTime.UtcNow;
+
+        _context.TelegramBots.Update(bot);
+        await _context.SaveChangesAsync();
+
+        return Ok(bot);
+    }
+
+    [HttpPatch("bots/{id}/toggle")]
+    public async Task<IActionResult> ToggleBot(int id)
+    {
+        var bot = await _context.TelegramBots.FirstOrDefaultAsync(b => b.Id == id);
+        if (bot == null) return NotFound("Bot not found.");
+
+        bot.IsActive = !bot.IsActive;
+        bot.UpdatedAt = DateTime.UtcNow;
+        _context.TelegramBots.Update(bot);
+        await _context.SaveChangesAsync();
+
+        return Ok(bot);
+    }
+
+    [HttpDelete("bots/{id}")]
+    public async Task<IActionResult> DeleteBot(int id)
+    {
+        var bot = await _context.TelegramBots.FirstOrDefaultAsync(b => b.Id == id);
+        if (bot == null) return NotFound("Bot not found.");
+
+        _context.TelegramBots.Remove(bot);
+        await _context.SaveChangesAsync();
+
+        return Ok(new { Message = "Bot deleted." });
+    }
+
     private async Task<(bool Success, string? Error, string? IdToken, string? RefreshToken, string? Email)>
         ExchangeGoogleCodeAsync(string code, string clientId, string clientSecret, string redirectUri)
     {
@@ -343,6 +441,13 @@ public class GoogleCredentialsRequest
 {
     public string ClientId { get; set; } = string.Empty;
     public string ClientSecret { get; set; } = string.Empty;
+}
+
+public class TelegramBotRequest
+{
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string Token { get; set; } = string.Empty;
 }
 
 

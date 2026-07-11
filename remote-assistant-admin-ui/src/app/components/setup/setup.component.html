@@ -8,33 +8,68 @@
   </div>
 
   <div class="setup-grid">
-    <!-- Telegram Configuration -->
-    <div class="card glass">
+    <div class="card glass full-width">
       <div class="card-header">
         <span class="step-num">1</span>
-        <h2>Telegram Bot Config</h2>
+        <h2>Telegram Bots</h2>
         <span class="badge" [ngClass]="status.hasTelegramBotToken ? 'success' : 'warning'">
-          {{ status.hasTelegramBotToken ? 'Connected' : 'Missing' }}
+          {{ status.hasTelegramBotToken ? status.telegramBotCount + ' Active' : 'No Bots' }}
         </span>
       </div>
-      <p class="description">Paste your Telegram Bot Token generated from &#64;BotFather. This enables the bot to handle user registrations.</p>
-      
-      <div class="form-group">
-        <label for="telegramToken">Bot Token</label>
-        <input 
-          type="password" 
-          id="telegramToken" 
-          [(ngModel)]="telegramToken" 
-          placeholder="e.g. 123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"
-          class="form-control"
-        />
+      <p class="description">Manage your Telegram bots. Each bot can serve a different purpose. The worker picks up the first active bot to handle registrations.</p>
+
+      <div class="bot-list" *ngIf="bots.length > 0">
+        <div class="bot-item" *ngFor="let bot of bots">
+          <div class="bot-info">
+            <div class="bot-name">
+              {{ bot.name }}
+              <span class="bot-status" [ngClass]="bot.isActive ? 'active' : 'inactive'">
+                {{ bot.isActive ? 'Active' : 'Inactive' }}
+              </span>
+            </div>
+            <div class="bot-desc" *ngIf="bot.description">{{ bot.description }}</div>
+            <div class="bot-token-preview">{{ bot.token.substring(0, 15) }}...</div>
+          </div>
+          <div class="bot-actions">
+            <button (click)="editBot(bot)" class="btn btn-sm btn-outline">Edit</button>
+            <button (click)="toggleBot(bot)" class="btn btn-sm" [ngClass]="bot.isActive ? 'btn-outline' : 'btn-primary'">
+              {{ bot.isActive ? 'Disable' : 'Enable' }}
+            </button>
+            <button (click)="deleteBot(bot.id)" class="btn btn-sm btn-danger">Delete</button>
+          </div>
+        </div>
       </div>
 
-      <button (click)='saveTelegram()' class="btn btn-primary">Save Bot Token</button>
-      <div *ngIf="telegramMessage" class="alert" [ngClass]="telegramError ? 'alert-danger' : 'alert-success'">
-        {{ telegramMessage }}
+      <div class="bot-empty" *ngIf="bots.length === 0 && !showForm">
+        <p>No bots configured yet. Add your first Telegram bot below.</p>
       </div>
+
+      <div class="bot-form" *ngIf="showForm">
+        <h3>{{ editingBotId ? 'Edit Bot' : 'Add Bot' }}</h3>
+        <div class="form-group">
+          <label for="botName">Name</label>
+          <input type="text" id="botName" [(ngModel)]="botName" placeholder="e.g. Registration Bot" class="form-control" />
+        </div>
+        <div class="form-group">
+          <label for="botDesc">Description</label>
+          <input type="text" id="botDesc" [(ngModel)]="botDescription" placeholder="Handles new user registrations" class="form-control" />
+        </div>
+        <div class="form-group">
+          <label for="botToken">Bot Token</label>
+          <input type="password" id="botToken" [(ngModel)]="botToken" placeholder="123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ" class="form-control" />
+        </div>
+        <div class="form-actions">
+          <button (click)="saveBot()" [disabled]="saving" class="btn btn-primary">
+            {{ saving ? 'Saving...' : (editingBotId ? 'Update Bot' : 'Save Bot') }}
+          </button>
+          <button (click)="cancelForm()" class="btn btn-outline">Cancel</button>
+        </div>
+        <div *ngIf="botMessage" class="alert" [ngClass]="botError ? 'alert-danger' : 'alert-success'">
+          {{ botMessage }}
+        </div>
+      </div>
+
+      <button *ngIf="!showForm" (click)="showAddForm()" class="btn btn-primary">+ Add Bot</button>
     </div>
-
   </div>
 </div>

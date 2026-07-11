@@ -25,7 +25,7 @@
     </div>
     <div class="status-checks">
       <span class="check-item" [ngClass]="status.hasTelegramBotToken ? 'check-yes' : 'check-no'">
-        Bot Token {{ status.hasTelegramBotToken ? '✓' : '✗' }}
+        Bots {{ status.hasTelegramBotToken ? status.telegramBotCount : 0 }}
       </span>
     </div>
   </div>

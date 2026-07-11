@@ -42,13 +42,14 @@ public class TelegramBotService : BackgroundService
                 using (var scope = _serviceProvider.CreateScope())
                 {
                     var context = scope.ServiceProvider.GetRequiredService<SchedulerDbContext>();
-                    var setting = await context.SystemSettings.FirstOrDefaultAsync(s => s.Key == "TelegramBotToken", stoppingToken);
-                    dbToken = setting?.Value;
+                    var activeBot = await context.TelegramBots
+                        .FirstOrDefaultAsync(b => b.IsActive, stoppingToken);
+                    dbToken = activeBot?.Token;
                 }
 
                 if (string.IsNullOrEmpty(dbToken))
                 {
-                    _logger.LogWarning("Telegram Bot Token is not configured in database yet. Please configure it via Admin UI.");
+                    _logger.LogWarning("No active Telegram Bot found. Please configure a bot via the Admin UI setup page.");
                     StopBot();
                 }
                 else if (dbToken != _activeToken)

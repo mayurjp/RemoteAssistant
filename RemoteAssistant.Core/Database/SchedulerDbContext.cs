@@ -10,6 +10,8 @@ public class SchedulerDbContext : DbContext
 
     public DbSet<User> Users => Set<User>();
     public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
+    public DbSet<OAuthProvider> OAuthProviders => Set<OAuthProvider>();
+    public DbSet<TelegramBot> TelegramBots => Set<TelegramBot>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
