@@ -2,7 +2,8 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
-import { ApiService, ConfigStatus, TelegramBot } from '../../services/api.service';
+import { ApiService, ConfigStatus, TelegramBot, BotRegistration } from '../../services/api.service';
+import { AuthService } from '../../services/auth.service';
 
 @Component({
   selector: 'app-setup',
@@ -22,6 +23,8 @@ export class SetupComponent implements OnInit {
   };
 
   bots: TelegramBot[] = [];
+  registrations: { [botId: number]: BotRegistration[] } = {};
+  expandedBotId: number | null = null;
 
   showForm = false;
   editingBotId: number | null = null;
@@ -33,7 +36,7 @@ export class SetupComponent implements OnInit {
   botMessage = '';
   botError = false;
 
-  constructor(private apiService: ApiService) {}
+  constructor(private apiService: ApiService, private authService: AuthService) {}
 
   ngOnInit() {
     this.loadData();
@@ -48,6 +51,18 @@ export class SetupComponent implements OnInit {
     this.apiService.getBots().subscribe({
       next: (bots) => this.bots = bots,
       error: (err) => console.error('Failed to load bots', err)
+    });
+  }
+
+  toggleRegistrations(botId: number) {
+    if (this.expandedBotId === botId) {
+      this.expandedBotId = null;
+      return;
+    }
+    this.expandedBotId = botId;
+    this.apiService.getBotRegistrations(botId).subscribe({
+      next: (regs) => this.registrations[botId] = regs,
+      error: (err) => console.error('Failed to load registrations', err)
     });
   }
 
@@ -133,5 +148,9 @@ export class SetupComponent implements OnInit {
         this.botError = true;
       }
     });
+  }
+
+  logout() {
+    this.authService.logout();
   }
 }

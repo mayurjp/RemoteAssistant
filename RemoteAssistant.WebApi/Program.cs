@@ -98,6 +98,23 @@ using (var scope = app.Services.CreateScope())
             END
             """);
 
+        context.Database.ExecuteSqlRaw("""
+            IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'BotRegistrations')
+            BEGIN
+                CREATE TABLE [BotRegistrations] (
+                    [Id] int NOT NULL IDENTITY,
+                    [TelegramId] bigint NOT NULL,
+                    [BotId] int NOT NULL,
+                    [IsActive] bit NOT NULL DEFAULT 1,
+                    [RegisteredAt] datetime2 NOT NULL,
+                    [UnregisteredAt] datetime2 NULL,
+                    CONSTRAINT [PK_BotRegistrations] PRIMARY KEY ([Id]),
+                    CONSTRAINT [FK_BotRegistrations_TelegramBots_BotId] FOREIGN KEY ([BotId]) REFERENCES [TelegramBots] ([Id]) ON DELETE CASCADE,
+                    CONSTRAINT [IX_BotRegistrations_TelegramId_BotId] UNIQUE ([TelegramId], [BotId])
+                );
+            END
+            """);
+
         Console.WriteLine("Database and tables verified/created successfully.");
     }
     catch (Exception ex)

@@ -2,9 +2,11 @@
   <div class="header">
     <div class="brand">
       <span class="logo">⚡</span>
-      <h1>RemoteAssistant Setup</h1>
+      <h1>Remote Assistant</h1>
     </div>
-    <a routerLink="/dashboard" class="btn-nav">← Back to Dashboard</a>
+    <div class="nav-actions">
+      <button (click)="logout()" class="btn btn-logout">Logout</button>
+    </div>
   </div>
 
   <div class="setup-grid">
@@ -19,25 +21,44 @@
       <p class="description">Manage your Telegram bots. Each bot can serve a different purpose. The worker picks up the first active bot to handle registrations.</p>
 
       <div class="bot-list" *ngIf="bots.length > 0">
-        <div class="bot-item" *ngFor="let bot of bots">
-          <div class="bot-info">
-            <div class="bot-name">
-              {{ bot.name }}
-              <span class="bot-status" [ngClass]="bot.isActive ? 'active' : 'inactive'">
-                {{ bot.isActive ? 'Active' : 'Inactive' }}
-              </span>
+        <ng-container *ngFor="let bot of bots">
+          <div class="bot-item">
+            <div class="bot-info" (click)="toggleRegistrations(bot.id)" style="cursor: pointer;">
+              <div class="bot-name">
+                {{ bot.name }}
+                <span class="bot-status" [ngClass]="bot.isActive ? 'active' : 'inactive'">
+                  {{ bot.isActive ? 'Active' : 'Inactive' }}
+                </span>
+              </div>
+              <div class="bot-desc" *ngIf="bot.description">{{ bot.description }}</div>
+              <div class="bot-token-preview">{{ bot.token.substring(0, 15) }}...</div>
+              <div class="bot-reg-count">
+                {{ registrations[bot.id] ? registrations[bot.id].length : '...' }} registered users
+                <span *ngIf="expandedBotId === bot.id">▲</span>
+                <span *ngIf="expandedBotId !== bot.id">▼</span>
+              </div>
             </div>
-            <div class="bot-desc" *ngIf="bot.description">{{ bot.description }}</div>
-            <div class="bot-token-preview">{{ bot.token.substring(0, 15) }}...</div>
+            <div class="bot-actions">
+              <button (click)="editBot(bot)" class="btn btn-sm btn-outline">Edit</button>
+              <button (click)="toggleBot(bot)" class="btn btn-sm" [ngClass]="bot.isActive ? 'btn-outline' : 'btn-primary'">
+                {{ bot.isActive ? 'Disable' : 'Enable' }}
+              </button>
+              <button (click)="deleteBot(bot.id)" class="btn btn-sm btn-danger">Delete</button>
+            </div>
           </div>
-          <div class="bot-actions">
-            <button (click)="editBot(bot)" class="btn btn-sm btn-outline">Edit</button>
-            <button (click)="toggleBot(bot)" class="btn btn-sm" [ngClass]="bot.isActive ? 'btn-outline' : 'btn-primary'">
-              {{ bot.isActive ? 'Disable' : 'Enable' }}
-            </button>
-            <button (click)="deleteBot(bot.id)" class="btn btn-sm btn-danger">Delete</button>
+
+          <div class="reg-list" *ngIf="expandedBotId === bot.id && registrations[bot.id]">
+            <div class="reg-header">Registered Users ({{ registrations[bot.id].length }})</div>
+            <div class="reg-empty" *ngIf="registrations[bot.id].length === 0">No users registered yet.</div>
+          <div class="reg-item" *ngFor="let reg of registrations[bot.id]">
+            <span class="reg-id">Telegram ID: {{ reg.telegramId }}</span>
+            <span class="reg-date">Since {{ reg.registeredAt | date:'medium' }}</span>
+            <span class="reg-status" [ngClass]="reg.isActive ? 'active' : 'inactive'">
+              {{ reg.isActive ? 'Active' : 'Unregistered' }}
+            </span>
           </div>
-        </div>
+          </div>
+        </ng-container>
       </div>
 
       <div class="bot-empty" *ngIf="bots.length === 0 && !showForm">

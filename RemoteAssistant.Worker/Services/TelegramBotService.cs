@@ -20,6 +20,7 @@ public class TelegramBotService : BackgroundService
     private readonly ILogger<TelegramBotService> _logger;
 
     private string? _activeToken;
+    private int? _activeBotId;
     private TelegramBotClient? _botClient;
     private CancellationTokenSource? _botCts;
 
@@ -38,6 +39,7 @@ public class TelegramBotService : BackgroundService
             try
             {
                 string? dbToken = null;
+                int? dbBotId = null;
 
                 using (var scope = _serviceProvider.CreateScope())
                 {
@@ -45,19 +47,21 @@ public class TelegramBotService : BackgroundService
                     var activeBot = await context.TelegramBots
                         .FirstOrDefaultAsync(b => b.IsActive, stoppingToken);
                     dbToken = activeBot?.Token;
+                    dbBotId = activeBot?.Id;
                 }
 
-                if (string.IsNullOrEmpty(dbToken))
+                if (string.IsNullOrEmpty(dbToken) || dbBotId == null)
                 {
                     _logger.LogWarning("No active Telegram Bot found. Please configure a bot via the Admin UI setup page.");
                     StopBot();
                 }
                 else if (dbToken != _activeToken)
                 {
-                    _logger.LogInformation("New/Updated Telegram Bot Token detected. Initializing bot...");
+                    _logger.LogInformation("Switching to Bot ID {BotId}...", dbBotId);
                     StopBot();
 
                     _activeToken = dbToken;
+                    _activeBotId = dbBotId;
                     _botCts = new CancellationTokenSource();
                     _botClient = new TelegramBotClient(_activeToken);
 
@@ -74,7 +78,7 @@ public class TelegramBotService : BackgroundService
                     );
 
                     var me = await _botClient.GetMeAsync(cancellationToken: _botCts.Token);
-                    _logger.LogInformation("Telegram Bot @{BotUsername} is up and running.", me.Username);
+                    _logger.LogInformation("Telegram Bot @{BotUsername} (ID {BotId}) is up and running.", me.Username, _activeBotId);
                 }
             }
             catch (Exception ex)
@@ -99,19 +103,21 @@ public class TelegramBotService : BackgroundService
         }
         _botClient = null;
         _activeToken = null;
+        _activeBotId = null;
     }
 
     private async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
     {
         if (update.Message is not { } message) return;
         if (message.Text is not { } messageText) return;
+        if (_activeBotId == null) return;
 
         var parts = messageText.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length == 0) return;
 
         var command = parts[0].ToLower();
 
-        _logger.LogInformation("Received message '{Text}' from ChatId {ChatId}", messageText, message.Chat.Id);
+        _logger.LogInformation("Received message '{Text}' from ChatId {ChatId} for BotId {BotId}", messageText, message.Chat.Id, _activeBotId);
 
         try
         {
@@ -121,7 +127,10 @@ public class TelegramBotService : BackgroundService
                 case "/help":
                     await botClient.SendTextMessageAsync(
                         chatId: message.Chat.Id,
-                        text: "Welcome to RemoteAssistant Bot!\n\nTo register, use:\n`/register your-email@example.com`",
+                        text: "Welcome! You are talking to bot ID " + _activeBotId + ".\n\n" +
+                              "Commands:\n" +
+                              "`/register` — Register to this bot\n" +
+                              "`/unregister` — Unregister from this bot",
                         parseMode: ParseMode.Markdown,
                         cancellationToken: cancellationToken
                     );
@@ -131,10 +140,14 @@ public class TelegramBotService : BackgroundService
                     await HandleRegisterCommandAsync(botClient, message, parts, cancellationToken);
                     break;
 
+                case "/unregister":
+                    await HandleUnregisterCommandAsync(botClient, message, cancellationToken);
+                    break;
+
                 default:
                     await botClient.SendTextMessageAsync(
                         chatId: message.Chat.Id,
-                        text: "Unknown command. Use `/register <email>` or `/help`.",
+                        text: "Unknown command. Use `/register`, `/unregister`, or `/help`.",
                         parseMode: ParseMode.Markdown,
                         cancellationToken: cancellationToken
                     );
@@ -149,63 +162,78 @@ public class TelegramBotService : BackgroundService
 
     private async Task HandleRegisterCommandAsync(ITelegramBotClient botClient, Message message, string[] parts, CancellationToken cancellationToken)
     {
-        if (parts.Length < 2)
-        {
-            await botClient.SendTextMessageAsync(
-                message.Chat.Id,
-                "Usage: `/register your-email@example.com`",
-                parseMode: ParseMode.Markdown,
-                cancellationToken: cancellationToken
-            );
-            return;
-        }
-
-        var email = parts[1].Trim();
-        if (!email.Contains("@") || !email.Contains("."))
-        {
-            await botClient.SendTextMessageAsync(
-                message.Chat.Id,
-                "Please enter a valid email address.",
-                cancellationToken: cancellationToken
-            );
-            return;
-        }
+        if (_activeBotId == null) return;
 
         using (var scope = _serviceProvider.CreateScope())
         {
             var context = scope.ServiceProvider.GetRequiredService<SchedulerDbContext>();
-            var user = await context.Users.FirstOrDefaultAsync(u => u.TelegramId == message.Chat.Id, cancellationToken);
+            var botId = _activeBotId.Value;
 
-            if (user == null)
+            var existing = await context.BotRegistrations
+                .FirstOrDefaultAsync(r => r.TelegramId == message.Chat.Id && r.BotId == botId, cancellationToken);
+
+            if (existing != null)
             {
-                user = new RemoteAssistant.Core.Database.User
+                if (existing.IsActive)
                 {
-                    TelegramId = message.Chat.Id,
-                    Email = email,
-                    IsVerified = true,
-                    CreatedAt = DateTime.UtcNow,
-                    VerifiedAt = DateTime.UtcNow
-                };
-                context.Users.Add(user);
+                    await botClient.SendTextMessageAsync(message.Chat.Id, "You are already registered to this bot.", cancellationToken: cancellationToken);
+                    return;
+                }
+
+                existing.IsActive = true;
+                existing.UnregisteredAt = null;
+                context.BotRegistrations.Update(existing);
+                await context.SaveChangesAsync(cancellationToken);
+
+                await botClient.SendTextMessageAsync(message.Chat.Id, "✅ You have been re-registered to this bot.", cancellationToken: cancellationToken);
             }
             else
             {
-                user.Email = email;
-                user.IsVerified = true;
-                user.VerifiedAt = DateTime.UtcNow;
-                context.Users.Update(user);
+                var reg = new BotRegistration
+                {
+                    TelegramId = message.Chat.Id,
+                    BotId = botId,
+                    IsActive = true,
+                    RegisteredAt = DateTime.UtcNow
+                };
+                context.BotRegistrations.Add(reg);
+                await context.SaveChangesAsync(cancellationToken);
+
+                await botClient.SendTextMessageAsync(message.Chat.Id, "✅ You are now registered to this bot.", cancellationToken: cancellationToken);
+            }
+        }
+    }
+
+    private async Task HandleUnregisterCommandAsync(ITelegramBotClient botClient, Message message, CancellationToken cancellationToken)
+    {
+        if (_activeBotId == null) return;
+
+        using (var scope = _serviceProvider.CreateScope())
+        {
+            var context = scope.ServiceProvider.GetRequiredService<SchedulerDbContext>();
+            var botId = _activeBotId.Value;
+
+            var existing = await context.BotRegistrations
+                .FirstOrDefaultAsync(r => r.TelegramId == message.Chat.Id && r.BotId == botId && r.IsActive, cancellationToken);
+
+            if (existing == null)
+            {
+                await botClient.SendTextMessageAsync(
+                    message.Chat.Id,
+                    "You are not registered to this bot. Use `/register <email>` to register.",
+                    cancellationToken: cancellationToken
+                );
+                return;
             }
 
+            existing.IsActive = false;
+            existing.UnregisteredAt = DateTime.UtcNow;
+            context.BotRegistrations.Update(existing);
             await context.SaveChangesAsync(cancellationToken);
 
-            var existingUser = user.IsVerified && user.VerifiedAt != user.CreatedAt
-                ? "updated"
-                : "registered";
-
             await botClient.SendTextMessageAsync(
-                chatId: message.Chat.Id,
-                text: $"✅ Your account has been {existingUser} successfully with email `{email}`.",
-                parseMode: ParseMode.Markdown,
+                message.Chat.Id,
+                "You have been unregistered from this bot. Use `/register <email>` to re-register.",
                 cancellationToken: cancellationToken
             );
         }

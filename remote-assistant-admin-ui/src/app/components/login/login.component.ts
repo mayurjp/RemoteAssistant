@@ -13,7 +13,7 @@ import { ApiService } from '../../services/api.service';
       <div class="card glass">
         <div class="brand">
           <span class="logo">⚡</span>
-          <h1>RemoteAssistant</h1>
+          <h1>Remote Assistant</h1>
         </div>
 
         <ng-container *ngIf="!credentialsConfigured && !saving">
@@ -50,7 +50,7 @@ import { ApiService } from '../../services/api.service';
         </ng-container>
 
         <ng-container *ngIf="credentialsConfigured || saving">
-          <p class="subtitle">Sign in to access the admin panel</p>
+          <p class="subtitle">Sign in with your Google account</p>
 
           <button (click)="startLogin()" [disabled]="loading" class="btn btn-google">
             <svg class="google-icon" viewBox="0 0 24 24" width="20" height="20">

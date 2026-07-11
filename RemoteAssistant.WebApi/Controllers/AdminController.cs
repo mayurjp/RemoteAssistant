@@ -223,7 +223,7 @@ public class AdminController : ControllerBase
             Expires = DateTimeOffset.UtcNow.AddHours(8)
         });
 
-        return Redirect($"{frontendBase}/dashboard");
+        return Redirect(frontendBase);
     }
 
     [HttpGet("auth/status")]
@@ -245,16 +245,6 @@ public class AdminController : ControllerBase
     public IActionResult Logout()
     {
         return Ok(new { Message = "Logged out successfully." });
-    }
-
-    [HttpGet("users")]
-    public async Task<IActionResult> GetUsers()
-    {
-        var users = await _context.Users
-            .OrderByDescending(u => u.CreatedAt)
-            .ToListAsync();
-
-        return Ok(users);
     }
 
     [HttpGet("bots")]
@@ -335,6 +325,28 @@ public class AdminController : ControllerBase
         await _context.SaveChangesAsync();
 
         return Ok(new { Message = "Bot deleted." });
+    }
+
+    [HttpGet("bots/{id}/registrations")]
+    public async Task<IActionResult> GetBotRegistrations(int id)
+    {
+        var exists = await _context.TelegramBots.AnyAsync(b => b.Id == id);
+        if (!exists) return NotFound("Bot not found.");
+
+        var registrations = await _context.BotRegistrations
+            .Where(r => r.BotId == id)
+            .OrderByDescending(r => r.RegisteredAt)
+            .Select(r => new
+            {
+                r.Id,
+                r.TelegramId,
+                r.IsActive,
+                r.RegisteredAt,
+                r.UnregisteredAt
+            })
+            .ToListAsync();
+
+        return Ok(registrations);
     }
 
     private async Task<(bool Success, string? Error, string? IdToken, string? RefreshToken, string? Email)>

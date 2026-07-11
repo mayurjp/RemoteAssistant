@@ -12,16 +12,6 @@ export interface ConfigStatus {
   googleAdminEmail: string | null;
 }
 
-export interface User {
-  telegramId: number;
-  email: string;
-  isVerified: boolean;
-  otpCode: string | null;
-  otpExpiry: string | null;
-  createdAt: string;
-  verifiedAt: string | null;
-}
-
 export interface TelegramBot {
   id: number;
   name: string;
@@ -58,10 +48,6 @@ export class ApiService {
     return this.http.post<any>(`${this.baseUrl}/config/google`, { clientId, clientSecret });
   }
 
-  getUsers(): Observable<User[]> {
-    return this.http.get<User[]>(`${this.baseUrl}/users`);
-  }
-
   getBots(): Observable<TelegramBot[]> {
     return this.http.get<TelegramBot[]>(`${this.baseUrl}/bots`);
   }
@@ -81,4 +67,16 @@ export class ApiService {
   deleteBot(id: number): Observable<any> {
     return this.http.delete<any>(`${this.baseUrl}/bots/${id}`);
   }
+
+  getBotRegistrations(botId: number): Observable<BotRegistration[]> {
+    return this.http.get<BotRegistration[]>(`${this.baseUrl}/bots/${botId}/registrations`);
+  }
+}
+
+export interface BotRegistration {
+  id: number;
+  telegramId: number;
+  isActive: boolean;
+  registeredAt: string;
+  unregisteredAt: string | null;
 }

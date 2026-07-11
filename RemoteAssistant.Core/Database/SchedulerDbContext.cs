@@ -8,16 +8,22 @@ public class SchedulerDbContext : DbContext
     {
     }
 
-    public DbSet<User> Users => Set<User>();
     public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
     public DbSet<OAuthProvider> OAuthProviders => Set<OAuthProvider>();
     public DbSet<TelegramBot> TelegramBots => Set<TelegramBot>();
+    public DbSet<BotRegistration> BotRegistrations => Set<BotRegistration>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
 
-        // Seed some initial system setting keys if they don't exist
-        // (Optional, we can create them dynamically when we save them)
+        modelBuilder.Entity<BotRegistration>()
+            .HasIndex(r => new { r.TelegramId, r.BotId })
+            .IsUnique();
+
+        modelBuilder.Entity<BotRegistration>()
+            .HasOne(r => r.Bot)
+            .WithMany()
+            .HasForeignKey(r => r.BotId);
     }
 }
