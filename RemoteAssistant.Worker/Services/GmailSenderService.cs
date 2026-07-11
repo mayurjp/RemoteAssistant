@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using RemoteAssistant.Core.Database;
 
@@ -15,12 +16,18 @@ public class GmailSenderService
 {
     private readonly SchedulerDbContext _context;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IConfiguration _configuration;
     private readonly ILogger<GmailSenderService> _logger;
 
-    public GmailSenderService(SchedulerDbContext context, IHttpClientFactory httpClientFactory, ILogger<GmailSenderService> logger)
+    public GmailSenderService(
+        SchedulerDbContext context, 
+        IHttpClientFactory httpClientFactory, 
+        IConfiguration configuration,
+        ILogger<GmailSenderService> logger)
     {
         _context = context;
         _httpClientFactory = httpClientFactory;
+        _configuration = configuration;
         _logger = logger;
     }
 
@@ -30,15 +37,17 @@ public class GmailSenderService
 
         // Fetch settings from DB
         var settings = await _context.SystemSettings.ToListAsync();
-        var clientId = settings.Find(s => s.Key == "GoogleClientId")?.Value;
-        var clientSecret = settings.Find(s => s.Key == "GoogleClientSecret")?.Value;
+        
+        // Fallback to appsettings.json config for client credentials
+        var clientId = settings.Find(s => s.Key == "GoogleClientId")?.Value ?? _configuration["Google:ClientId"];
+        var clientSecret = settings.Find(s => s.Key == "GoogleClientSecret")?.Value ?? _configuration["Google:ClientSecret"];
         var refreshToken = settings.Find(s => s.Key == "GoogleRefreshToken")?.Value;
         var adminEmail = settings.Find(s => s.Key == "GoogleAdminEmail")?.Value;
 
         if (string.IsNullOrEmpty(clientId) || string.IsNullOrEmpty(clientSecret) ||
             string.IsNullOrEmpty(refreshToken) || string.IsNullOrEmpty(adminEmail))
         {
-            _logger.LogError("Gmail configuration is missing in the database. Ensure Gmail OAuth is completed in Admin UI.");
+            _logger.LogError("Gmail configuration is missing (need ClientId, ClientSecret, RefreshToken, and AdminEmail). Ensure credentials are set and OAuth is complete.");
             return false;
         }
 

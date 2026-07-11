@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { environment } from '../../environments/environment';
 
 export interface ConfigStatus {
   hasGoogleClientId: boolean;
@@ -8,6 +9,7 @@ export interface ConfigStatus {
   hasGoogleRefreshToken: boolean;
   hasTelegramBotToken: boolean;
   googleAdminEmail: string | null;
+  googleClientId: string | null;
 }
 
 export interface User {
@@ -24,7 +26,7 @@ export interface User {
   providedIn: 'root'
 })
 export class ApiService {
-  private baseUrl = 'http://localhost:5000/api/admin';
+  private baseUrl = environment.apiBaseUrl;
 
   constructor(private http: HttpClient) {}
 
@@ -41,7 +43,7 @@ export class ApiService {
   }
 
   processOAuthCallback(code: string): Observable<any> {
-    return this.http.post<any>(`${this.baseUrl}/oauth/callback`, { code });
+    return this.http.post<any>(`${this.baseUrl}/oauth/callback`, { code, redirectUri: environment.oauthRedirectUri });
   }
 
   getUsers(): Observable<User[]> {

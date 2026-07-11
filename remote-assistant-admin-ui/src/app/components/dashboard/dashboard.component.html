@@ -6,8 +6,10 @@
       <h1>RemoteAssistant Admin</h1>
     </div>
     <div class="nav-actions">
+      <span class="user-email" *ngIf="userEmail">{{ userEmail }}</span>
       <button (click)='loadData()' class="btn-icon" title="Reload Data">🔄</button>
       <a routerLink="/setup" class="btn btn-setup">⚙ Settings Panel</a>
+      <button (click)='logout()' class="btn btn-logout">Logout</button>
     </div>
   </div>
 

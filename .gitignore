@@ -22,6 +22,11 @@ bld/
 appsettings.local.json
 appsettings.Development.json
 
+# Angular environment files with secrets
+src/environments/environment.development.ts
+src/environments/environment.*.ts
+!src/environments/environment.ts
+
 # === Node / Angular ===
 node_modules/
 npm-debug.log*

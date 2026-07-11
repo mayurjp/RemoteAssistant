@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { ApiService, ConfigStatus, User } from '../../services/api.service';
+import { AuthService } from '../../services/auth.service';
 
 @Component({
   selector: 'app-dashboard',
@@ -17,7 +18,8 @@ export class DashboardComponent implements OnInit {
     hasGoogleClientSecret: false,
     hasGoogleRefreshToken: false,
     hasTelegramBotToken: false,
-    googleAdminEmail: null
+    googleAdminEmail: null,
+    googleClientId: null
   };
 
   users: User[] = [];
@@ -25,9 +27,16 @@ export class DashboardComponent implements OnInit {
   searchQuery: string = '';
   loading: boolean = true;
 
-  constructor(private apiService: ApiService, private router: Router) {}
+  userEmail: string | null = null;
+
+  constructor(
+    private apiService: ApiService,
+    private router: Router,
+    private authService: AuthService
+  ) {}
 
   ngOnInit() {
+    this.userEmail = this.authService.getEmail();
     this.loadData();
   }
 
@@ -73,5 +82,9 @@ export class DashboardComponent implements OnInit {
            this.status.hasGoogleClientId && 
            this.status.hasGoogleClientSecret && 
            this.status.hasGoogleRefreshToken;
+  }
+
+  logout() {
+    this.authService.logout();
   }
 }

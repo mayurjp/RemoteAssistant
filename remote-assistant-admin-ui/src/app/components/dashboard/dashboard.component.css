@@ -91,6 +91,23 @@
   box-shadow: 0 6px 20px rgba(138, 43, 226, 0.4);
 }
 
+.btn-logout {
+  background: rgba(229, 62, 62, 0.1);
+  color: #f56565;
+  border: 1px solid rgba(229, 62, 62, 0.25);
+}
+
+.btn-logout:hover {
+  background: rgba(229, 62, 62, 0.2);
+  border-color: rgba(229, 62, 62, 0.4);
+}
+
+.user-email {
+  font-size: 13px;
+  color: #a0aec0;
+  margin-right: 4px;
+}
+
 .glass {
   background: rgba(30, 30, 46, 0.45);
   backdrop-filter: blur(12px);

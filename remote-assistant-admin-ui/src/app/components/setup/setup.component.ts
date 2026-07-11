@@ -1,8 +1,9 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterModule } from '@angular/router';
+import { RouterModule } from '@angular/router';
 import { ApiService, ConfigStatus } from '../../services/api.service';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-setup',
@@ -17,19 +18,20 @@ export class SetupComponent implements OnInit {
     hasGoogleClientSecret: false,
     hasGoogleRefreshToken: false,
     hasTelegramBotToken: false,
-    googleAdminEmail: null
+    googleAdminEmail: null,
+    googleClientId: null
   };
 
   telegramToken: string = '';
-  googleClientId: string = '';
-  googleClientSecret: string = '';
+  googleClientId: string = environment.googleClientId;
+  googleClientSecret: string = environment.googleClientSecret;
 
   telegramMessage: string = '';
   telegramError: boolean = false;
   googleMessage: string = '';
   googleError: boolean = false;
 
-  constructor(private apiService: ApiService, private router: Router) {}
+  constructor(private apiService: ApiService) {}
 
   ngOnInit() {
     this.loadStatus();
@@ -78,7 +80,7 @@ export class SetupComponent implements OnInit {
 
     this.apiService.saveGoogleCredentials(this.googleClientId, this.googleClientSecret).subscribe({
       next: (res) => {
-        this.googleMessage = 'Google credentials saved! You can now authorize Gmail below.';
+        this.googleMessage = 'Google credentials saved!';
         this.googleError = false;
         this.loadStatus();
       },
@@ -90,35 +92,23 @@ export class SetupComponent implements OnInit {
   }
 
   startOAuthRedirect() {
-    // If the form fields are filled we use them, otherwise we expect they are already saved in DB
-    const clientId = this.googleClientId.trim() || '';
-    
-    // Construct Google OAuth URL
+    const clientId = this.googleClientId.trim() || this.status.googleClientId || environment.googleClientId;
+    if (!clientId) {
+      this.googleMessage = 'Google Client ID is not configured. Check the environment file.';
+      this.googleError = true;
+      return;
+    }
+
     const googleAuthUrl = 'https://accounts.google.com/o/oauth2/v2/auth';
     const params = new URLSearchParams({
-      client_id: clientId || 'RETRIEVE_FROM_BACKEND', // we will pass it dynamically or redirect
-      redirect_uri: 'http://localhost:4200/oauth-callback',
+      client_id: clientId,
+      redirect_uri: environment.oauthRedirectUri,
       response_type: 'code',
       scope: 'openid email https://www.googleapis.com/auth/gmail.send',
       access_type: 'offline',
       prompt: 'consent'
     });
 
-    if (!clientId) {
-      // If client ID is already saved in DB but not in form, we need WebApi to give it or we can query status
-      this.apiService.getConfigStatus().subscribe(status => {
-        // Unfortunately backend doesn't return the raw client ID for security. 
-        // Admin must specify it in the form or we can retrieve it safely if we had a dedicated endpoint.
-        // For standard flow, the admin saves and immediately clicks authorize, so googleClientId is in the variable.
-        if (this.googleClientId) {
-          window.location.href = `${googleAuthUrl}?${params.toString()}`;
-        } else {
-          this.googleMessage = 'Please enter your Client ID in the field above to start authorization.';
-          this.googleError = true;
-        }
-      });
-    } else {
-      window.location.href = `${googleAuthUrl}?${params.toString()}`;
-    }
+    window.location.href = `${googleAuthUrl}?${params.toString()}`;
   }
 }
