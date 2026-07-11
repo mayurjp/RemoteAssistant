@@ -127,7 +127,7 @@ sequenceDiagram
 ```bash
 dotnet run --project RemoteAssistant.WebApi
 ```
-Creates the database schema on first startup.
+Starts on `http://localhost:5000`. Creates the database schema on first startup.
 
 ### 2. Start the Worker Service
 ```bash
@@ -141,6 +141,7 @@ cd remote-assistant-admin-ui
 npm install
 npm run start
 ```
+Starts on `http://localhost:4200`.
 
 ### 4. Configuration Workflow
 
@@ -184,6 +185,39 @@ npm run start
 
 ## Configuration Keys (appsettings.json)
 
+## Authentication
+
+Google OAuth is the single entry point. Sign-in handles both identity verification and Gmail API authorization in one consent screen.
+
+**Flow:**
+1. User clicks "Sign in with Google" on `/login`
+2. Angular calls `GET /api/admin/auth/google-login`
+3. Server responds with 302 redirect to Google (scopes: `openid email profile gmail.send`)
+4. User consents — Google redirects to `GET /api/admin/auth/callback?code=xxx`
+5. Server exchanges code for tokens, saves refresh token + admin email to DB
+6. Server issues a JWT, sets it as a non-httpOnly cookie (`auth_token`)
+7. Server redirects to `/dashboard`
+8. Angular `AuthService` reads cookie on init, stores JWT in `localStorage`, clears cookie
+9. `AuthInterceptor` attaches JWT as `Authorization: Bearer` header on all API requests
+
+**First-run setup:** If credentials aren't configured, the login page shows a form to enter Client ID and Client Secret. These are saved to the database via `POST /api/admin/config/google` (anonymous).
+
+## Environment Files
+
+`src/environments/environment.ts` — template (tracked in git):
+```ts
+export const environment = {
+  production: true,
+  apiBaseUrl: 'http://localhost:5000/api/admin'
+};
+```
+
+`src/environments/environment.development.ts` — development (gitignored). Copy the template and adjust as needed.
+
+---
+
+## Configuration Keys (appsettings.json)
+
 ```jsonc
 {
   "Google": {
@@ -206,3 +240,5 @@ npm run start
   }
 }
 ```
+
+> Credentials can be set in `appsettings.json` (server-side fallback) **or** via the login page UI form (saved to the `SystemSettings` database table). The server checks the database first, then falls back to config.
