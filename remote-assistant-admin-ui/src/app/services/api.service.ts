@@ -17,7 +17,6 @@ export interface TelegramBot {
   name: string;
   description: string | null;
   token: string;
-  isActive: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -58,10 +57,6 @@ export class ApiService {
 
   updateBot(id: number, bot: TelegramBotRequest): Observable<TelegramBot> {
     return this.http.put<TelegramBot>(`${this.baseUrl}/bots/${id}`, bot);
-  }
-
-  toggleBot(id: number): Observable<TelegramBot> {
-    return this.http.patch<TelegramBot>(`${this.baseUrl}/bots/${id}/toggle`, {});
   }
 
   deleteBot(id: number): Observable<any> {

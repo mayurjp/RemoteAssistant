@@ -26,9 +26,6 @@
             <div class="bot-info" (click)="toggleRegistrations(bot.id)" style="cursor: pointer;">
               <div class="bot-name">
                 {{ bot.name }}
-                <span class="bot-status" [ngClass]="bot.isActive ? 'active' : 'inactive'">
-                  {{ bot.isActive ? 'Active' : 'Inactive' }}
-                </span>
               </div>
               <div class="bot-desc" *ngIf="bot.description">{{ bot.description }}</div>
               <div class="bot-token-preview">{{ bot.token.substring(0, 15) }}...</div>
@@ -41,9 +38,6 @@
             <div class="bot-actions">
               <button (click)="openJobAssignment(bot)" class="btn btn-sm btn-outline">Jobs</button>
               <button (click)="editBot(bot)" class="btn btn-sm btn-outline">Edit</button>
-              <button (click)="toggleBot(bot)" class="btn btn-sm" [ngClass]="bot.isActive ? 'btn-outline' : 'btn-primary'">
-                {{ bot.isActive ? 'Disable' : 'Enable' }}
-              </button>
               <button (click)="deleteBot(bot.id)" class="btn btn-sm btn-danger">Delete</button>
             </div>
           </div>

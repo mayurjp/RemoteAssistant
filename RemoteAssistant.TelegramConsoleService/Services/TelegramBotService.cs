@@ -20,10 +20,10 @@ public class TelegramBotService : BackgroundService
     private readonly ILogger<TelegramBotService> _logger;
 
     private string? _activeToken;
-    private int? _activeBotId;
-    private string _activeBotName = "Bot";
-    private TelegramBotClient? _botClient;
-    private CancellationTokenSource? _botCts;
+    private int? _activeTelegramBotId;
+    private string _activeTelegramBotName = "Telegram Bot";
+    private TelegramBotClient? _telegramBotClient;
+    private CancellationTokenSource? _telegramBotCts;
 
     public TelegramBotService(IServiceProvider serviceProvider, ILogger<TelegramBotService> logger)
     {
@@ -33,57 +33,58 @@ public class TelegramBotService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("Bot Background Service starting...");
+        _logger.LogInformation("Telegram Bot background service starting...");
 
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
                 string? dbToken = null;
-                int? dbBotId = null;
+                int? dbTelegramBotId = null;
 
                 using (var scope = _serviceProvider.CreateScope())
                 {
                     var context = scope.ServiceProvider.GetRequiredService<SchedulerDbContext>();
-                    var activeBot = await context.TelegramBots
-                        .FirstOrDefaultAsync(b => b.IsActive, stoppingToken);
-                    dbToken = activeBot?.Token;
-                    dbBotId = activeBot?.Id;
-                    _activeBotName = activeBot?.Name ?? "Bot";
+                    var activeTelegramBot = await context.TelegramBots
+                        .OrderByDescending(b => b.CreatedAt)
+                        .FirstOrDefaultAsync(stoppingToken);
+                    dbToken = activeTelegramBot?.Token;
+                    dbTelegramBotId = activeTelegramBot?.Id;
+                    _activeTelegramBotName = activeTelegramBot?.Name ?? "Telegram Bot";
                 }
 
-                if (string.IsNullOrEmpty(dbToken) || dbBotId == null)
+                if (string.IsNullOrEmpty(dbToken) || dbTelegramBotId == null)
                 {
                     _logger.LogWarning("No active Telegram Bot found. Configure via the web UI.");
-                    StopBot();
+                    StopTelegramBot();
                 }
                 else if (dbToken != _activeToken)
                 {
-                    _logger.LogInformation("Switching to Bot ID {BotId}...", dbBotId);
-                    StopBot();
+                    _logger.LogInformation("Switching to Telegram Bot ID {TelegramBotId}...", dbTelegramBotId);
+                    StopTelegramBot();
 
                     _activeToken = dbToken;
-                    _activeBotId = dbBotId;
-                    _botCts = new CancellationTokenSource();
-                    _botClient = new TelegramBotClient(_activeToken);
+                    _activeTelegramBotId = dbTelegramBotId;
+                    _telegramBotCts = new CancellationTokenSource();
+                    _telegramBotClient = new TelegramBotClient(_activeToken);
 
-                    _botClient.StartReceiving(
+                    _telegramBotClient.StartReceiving(
                         updateHandler: HandleUpdateAsync,
                         pollingErrorHandler: HandleErrorAsync,
                         receiverOptions: new ReceiverOptions { AllowedUpdates = Array.Empty<UpdateType>() },
-                        cancellationToken: _botCts.Token
+                        cancellationToken: _telegramBotCts.Token
                     );
 
-                    var me = await _botClient.GetMeAsync(cancellationToken: _botCts.Token);
-                    _logger.LogInformation("Bot @{Username} (ID {BotId}) is online.", me.Username, _activeBotId);
+                    var me = await _telegramBotClient.GetMeAsync(cancellationToken: _telegramBotCts.Token);
+                    _logger.LogInformation("Telegram Bot @{Username} (ID {TelegramBotId}) is online.", me.Username, _activeTelegramBotId);
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error in bot service loop");
+                _logger.LogError(ex, "Error in Telegram Bot service loop");
             }
 
-            if (_botClient != null && _activeBotId != null)
+            if (_telegramBotClient != null && _activeTelegramBotId != null)
             {
                 await ProcessNotificationsAsync(stoppingToken);
             }
@@ -91,7 +92,7 @@ public class TelegramBotService : BackgroundService
             await Task.Delay(TimeSpan.FromSeconds(15), stoppingToken);
         }
 
-        StopBot();
+        StopTelegramBot();
     }
 
     private async Task ProcessNotificationsAsync(CancellationToken ct)
@@ -102,7 +103,7 @@ public class TelegramBotService : BackgroundService
             var context = scope.ServiceProvider.GetRequiredService<SchedulerDbContext>();
 
             var notifications = await context.UserNotifications
-                .Where(n => !n.Sent && n.BotId == _activeBotId)
+                .Where(n => !n.Sent && n.TelegramBotId == _activeTelegramBotId)
                 .OrderBy(n => n.CreatedAt)
                 .Take(20)
                 .ToListAsync(ct);
@@ -111,7 +112,7 @@ public class TelegramBotService : BackgroundService
             {
                 try
                 {
-                    await _botClient!.SendTextMessageAsync(n.TelegramId, n.Message, cancellationToken: ct);
+                    await _telegramBotClient!.SendTextMessageAsync(n.TelegramId, n.Message, cancellationToken: ct);
                     n.Sent = true;
                     n.SentAt = DateTime.UtcNow;
                 }
@@ -132,27 +133,27 @@ public class TelegramBotService : BackgroundService
         }
     }
 
-    private void StopBot()
+    private void StopTelegramBot()
     {
-        _botCts?.Cancel();
-        _botCts?.Dispose();
-        _botCts = null;
-        _botClient = null;
+        _telegramBotCts?.Cancel();
+        _telegramBotCts?.Dispose();
+        _telegramBotCts = null;
+        _telegramBotClient = null;
         _activeToken = null;
-        _activeBotId = null;
+        _activeTelegramBotId = null;
     }
 
     private async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken ct)
     {
         if (update.Message is not { } message) return;
         if (message.Text is not { } messageText) return;
-        if (_activeBotId == null) return;
+        if (_activeTelegramBotId == null) return;
 
         var parts = messageText.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length == 0) return;
 
         var command = parts[0].ToLower();
-        _logger.LogInformation("Msg '{Text}' from {ChatId} to Bot {BotId}", messageText, message.Chat.Id, _activeBotId);
+        _logger.LogInformation("Msg '{Text}' from {ChatId} to Telegram Bot {TelegramBotId}", messageText, message.Chat.Id, _activeTelegramBotId);
 
         try
         {
@@ -161,7 +162,7 @@ public class TelegramBotService : BackgroundService
                 case "/start":
                 case "/help":
                     await botClient.SendTextMessageAsync(message.Chat.Id,
-                        "Welcome to *" + _activeBotName + "*.\n\n" +
+                        "Welcome to *" + _activeTelegramBotName + "*.\n\n" +
                         "`/register` — Request access to this bot\n" +
                         "`/unregister` — Unregister from this bot\n" +
                         "`/status` — Check your registration status\n" +
@@ -205,14 +206,14 @@ public class TelegramBotService : BackgroundService
 
     private async Task HandleRegisterAsync(ITelegramBotClient botClient, Message message, CancellationToken ct)
     {
-        if (_activeBotId == null) return;
+        if (_activeTelegramBotId == null) return;
 
         using var scope = _serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<SchedulerDbContext>();
-        var botId = _activeBotId.Value;
+        var telegramBotId = _activeTelegramBotId.Value;
 
         var alreadyRegistered = await context.UserMemberships
-            .AnyAsync(r => r.TelegramId == message.Chat.Id && r.BotId == botId, ct);
+            .AnyAsync(r => r.TelegramId == message.Chat.Id && r.TelegramBotId == telegramBotId, ct);
 
         if (alreadyRegistered)
         {
@@ -221,7 +222,7 @@ public class TelegramBotService : BackgroundService
         }
 
         var pending = await context.RegistrationRequests
-            .FirstOrDefaultAsync(r => r.TelegramId == message.Chat.Id && r.BotId == botId && r.Status == "Pending", ct);
+            .FirstOrDefaultAsync(r => r.TelegramId == message.Chat.Id && r.TelegramBotId == telegramBotId && r.Status == "Pending", ct);
 
         if (pending != null)
         {
@@ -232,7 +233,7 @@ public class TelegramBotService : BackgroundService
         context.RegistrationRequests.Add(new RegistrationRequest
         {
             TelegramId = message.Chat.Id,
-            BotId = botId,
+            TelegramBotId = telegramBotId,
             Status = "Pending",
             RequestedAt = DateTime.UtcNow
         });
@@ -243,14 +244,14 @@ public class TelegramBotService : BackgroundService
 
     private async Task HandleUnregisterAsync(ITelegramBotClient botClient, Message message, CancellationToken ct)
     {
-        if (_activeBotId == null) return;
+        if (_activeTelegramBotId == null) return;
 
         using var scope = _serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<SchedulerDbContext>();
-        var botId = _activeBotId.Value;
+        var telegramBotId = _activeTelegramBotId.Value;
 
         var reg = await context.UserMemberships
-            .FirstOrDefaultAsync(r => r.TelegramId == message.Chat.Id && r.BotId == botId, ct);
+            .FirstOrDefaultAsync(r => r.TelegramId == message.Chat.Id && r.TelegramBotId == telegramBotId, ct);
 
         if (reg == null)
         {
@@ -266,14 +267,14 @@ public class TelegramBotService : BackgroundService
 
     private async Task HandleStatusAsync(ITelegramBotClient botClient, Message message, CancellationToken ct)
     {
-        if (_activeBotId == null) return;
+        if (_activeTelegramBotId == null) return;
 
         using var scope = _serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<SchedulerDbContext>();
-        var botId = _activeBotId.Value;
+        var telegramBotId = _activeTelegramBotId.Value;
 
         var reg = await context.UserMemberships
-            .FirstOrDefaultAsync(r => r.TelegramId == message.Chat.Id && r.BotId == botId, ct);
+            .FirstOrDefaultAsync(r => r.TelegramId == message.Chat.Id && r.TelegramBotId == telegramBotId, ct);
 
         if (reg != null)
         {
@@ -283,7 +284,7 @@ public class TelegramBotService : BackgroundService
 
         var pending = await context.RegistrationRequests
             .OrderByDescending(r => r.RequestedAt)
-            .FirstOrDefaultAsync(r => r.TelegramId == message.Chat.Id && r.BotId == botId, ct);
+            .FirstOrDefaultAsync(r => r.TelegramId == message.Chat.Id && r.TelegramBotId == telegramBotId, ct);
 
         if (pending != null)
         {
@@ -303,14 +304,14 @@ public class TelegramBotService : BackgroundService
 
     private async Task HandleJobsListAsync(ITelegramBotClient botClient, Message message, CancellationToken ct)
     {
-        if (_activeBotId == null) return;
+        if (_activeTelegramBotId == null) return;
 
         using var scope = _serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<SchedulerDbContext>();
-        var botId = _activeBotId.Value;
+        var telegramBotId = _activeTelegramBotId.Value;
 
         var isRegistered = await context.UserMemberships
-            .AnyAsync(r => r.TelegramId == message.Chat.Id && r.BotId == botId, ct);
+            .AnyAsync(r => r.TelegramId == message.Chat.Id && r.TelegramBotId == telegramBotId, ct);
 
         if (!isRegistered)
         {
@@ -319,7 +320,7 @@ public class TelegramBotService : BackgroundService
         }
 
         var jobTypes = await context.JobBotMappings
-            .Where(bj => bj.BotId == botId && bj.JobTemplate.IsActive)
+            .Where(bj => bj.TelegramBotId == telegramBotId)
             .Select(bj => bj.JobTemplate.JobType)
             .ToListAsync(ct);
 
@@ -337,14 +338,14 @@ public class TelegramBotService : BackgroundService
 
     private async Task HandleRunJobAsync(ITelegramBotClient botClient, Message message, string jobType, CancellationToken ct)
     {
-        if (_activeBotId == null) return;
+        if (_activeTelegramBotId == null) return;
 
         using var scope = _serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<SchedulerDbContext>();
-        var botId = _activeBotId.Value;
+        var telegramBotId = _activeTelegramBotId.Value;
 
         var isRegistered = await context.UserMemberships
-            .AnyAsync(r => r.TelegramId == message.Chat.Id && r.BotId == botId, ct);
+            .AnyAsync(r => r.TelegramId == message.Chat.Id && r.TelegramBotId == telegramBotId, ct);
 
         if (!isRegistered)
         {
@@ -353,7 +354,7 @@ public class TelegramBotService : BackgroundService
         }
 
         var isAssigned = await context.JobBotMappings
-            .AnyAsync(bj => bj.BotId == botId && bj.JobTemplate.JobType == jobType && bj.JobTemplate.IsActive, ct);
+            .AnyAsync(bj => bj.TelegramBotId == telegramBotId && bj.JobTemplate.JobType == jobType, ct);
 
         if (!isAssigned)
         {
@@ -363,7 +364,7 @@ public class TelegramBotService : BackgroundService
 
         context.JobRequests.Add(new JobRequest
         {
-            BotId = botId,
+            TelegramBotId = telegramBotId,
             JobType = jobType,
             TelegramId = message.Chat.Id,
             Status = "Pending",

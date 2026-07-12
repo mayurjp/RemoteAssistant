@@ -8,7 +8,7 @@ public class JobRequest
     [Key]
     public int Id { get; set; }
 
-    public int BotId { get; set; }
+    public int TelegramBotId { get; set; }
 
     [MaxLength(100)]
     public string JobType { get; set; } = string.Empty;
@@ -28,5 +28,5 @@ public class JobRequest
     [MaxLength(4000)]
     public string? Result { get; set; }
 
-    public TelegramBot Bot { get; set; } = null!;
+    public TelegramBot TelegramBot { get; set; } = null!;
 }

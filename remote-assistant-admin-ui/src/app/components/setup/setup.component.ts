@@ -183,13 +183,6 @@ export class SetupComponent implements OnInit {
     });
   }
 
-  toggleBot(bot: TelegramBot) {
-    this.apiService.toggleBot(bot.id).subscribe({
-      next: () => this.loadData(),
-      error: (err) => console.error('Failed to toggle bot', err)
-    });
-  }
-
   deleteBot(id: number) {
     if (!confirm('Are you sure you want to delete this bot?')) return;
 

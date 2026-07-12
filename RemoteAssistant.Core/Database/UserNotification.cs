@@ -8,7 +8,7 @@ public class UserNotification
     [Key]
     public int Id { get; set; }
 
-    public int BotId { get; set; }
+    public int TelegramBotId { get; set; }
 
     public long TelegramId { get; set; }
 
@@ -21,5 +21,5 @@ public class UserNotification
 
     public DateTime? SentAt { get; set; }
 
-    public TelegramBot Bot { get; set; } = null!;
+    public TelegramBot TelegramBot { get; set; } = null!;
 }

@@ -23,31 +23,31 @@ public class SchedulerDbContext : DbContext
         base.OnModelCreating(modelBuilder);
 
         modelBuilder.Entity<UserMembership>()
-            .HasIndex(r => new { r.TelegramId, r.BotId })
+            .HasIndex(r => new { r.TelegramId, r.TelegramBotId })
             .IsUnique();
 
         modelBuilder.Entity<UserMembership>()
-            .HasOne(r => r.Bot)
+            .HasOne(r => r.TelegramBot)
             .WithMany()
-            .HasForeignKey(r => r.BotId);
+            .HasForeignKey(r => r.TelegramBotId);
 
         modelBuilder.Entity<RegistrationRequest>()
-            .HasOne(r => r.Bot)
+            .HasOne(r => r.TelegramBot)
             .WithMany()
-            .HasForeignKey(r => r.BotId);
+            .HasForeignKey(r => r.TelegramBotId);
 
         modelBuilder.Entity<JobRequest>()
-            .HasOne(j => j.Bot)
+            .HasOne(j => j.TelegramBot)
             .WithMany()
-            .HasForeignKey(j => j.BotId);
+            .HasForeignKey(j => j.TelegramBotId);
 
         modelBuilder.Entity<JobBotMapping>()
-            .HasKey(bj => new { bj.BotId, bj.JobTemplateId });
+            .HasKey(bj => new { bj.TelegramBotId, bj.JobTemplateId });
 
         modelBuilder.Entity<JobBotMapping>()
-            .HasOne(bj => bj.Bot)
+            .HasOne(bj => bj.TelegramBot)
             .WithMany()
-            .HasForeignKey(bj => bj.BotId);
+            .HasForeignKey(bj => bj.TelegramBotId);
 
         modelBuilder.Entity<JobBotMapping>()
             .HasOne(bj => bj.JobTemplate)
@@ -55,8 +55,8 @@ public class SchedulerDbContext : DbContext
             .HasForeignKey(bj => bj.JobTemplateId);
 
         modelBuilder.Entity<UserNotification>()
-            .HasOne(n => n.Bot)
+            .HasOne(n => n.TelegramBot)
             .WithMany()
-            .HasForeignKey(n => n.BotId);
+            .HasForeignKey(n => n.TelegramBotId);
     }
 }

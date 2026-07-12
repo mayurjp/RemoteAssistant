@@ -79,7 +79,6 @@ sequenceDiagram
 | `Name` | `nvarchar(100)` | NOT NULL | Display name |
 | `Description` | `nvarchar(500)` | NULL | Optional description |
 | `Token` | `nvarchar(500)` | NOT NULL | Bot token from @BotFather |
-| `IsActive` | `bit` | NOT NULL | Whether the bot service polls this bot |
 | `CreatedAt` | `datetime2` | NOT NULL | |
 | `UpdatedAt` | `datetime2` | NOT NULL | |
 
@@ -89,10 +88,10 @@ sequenceDiagram
 |--------|------|----------|-------------|
 | `Id` | `int` (PK) | NOT NULL | Auto-increment |
 | `TelegramId` | `bigint` | NOT NULL | Telegram user ID |
-| `BotId` | `int` (FK) | NOT NULL | Which bot |
+| `TelegramBotId` | `int` (FK) | NOT NULL | Which bot |
 | `RegisteredAt` | `datetime2` | NOT NULL | |
 
-> Unique constraint on `(TelegramId, BotId)` — same user can be member of multiple bots.
+> Unique constraint on `(TelegramId, TelegramBotId)` — same user can be member of multiple bots.
 
 ### RegistrationRequests
 
@@ -100,7 +99,7 @@ sequenceDiagram
 |--------|------|----------|-------------|
 | `Id` | `int` (PK) | NOT NULL | Auto-increment |
 | `TelegramId` | `bigint` | NOT NULL | Telegram user ID |
-| `BotId` | `int` (FK) | NOT NULL | Which bot |
+| `TelegramBotId` | `int` (FK) | NOT NULL | Which bot |
 | `Status` | `nvarchar(50)` | NOT NULL | `Pending`, `Approved`, `Rejected` |
 | `RequestedAt` | `datetime2` | NOT NULL | |
 | `ReviewedAt` | `datetime2` | NULL | |
@@ -116,7 +115,6 @@ sequenceDiagram
 | `JobType` | `nvarchar(100)` | NOT NULL | Maps to `IJobExecutor.JobType` |
 | `Name` | `nvarchar(200)` | NOT NULL | Human-readable name |
 | `Description` | `nvarchar(500)` | NULL | |
-| `IsActive` | `bit` | NOT NULL | |
 | `CreatedAt` | `datetime2` | NOT NULL | |
 | `UpdatedAt` | `datetime2` | NOT NULL | |
 
@@ -126,7 +124,7 @@ sequenceDiagram
 
 | Column | Type | Nullable | Description |
 |--------|------|----------|-------------|
-| `BotId` | `int` (FK PK) | NOT NULL | Which bot |
+| `TelegramBotId` | `int` (FK PK) | NOT NULL | Which bot |
 | `JobTemplateId` | `int` (FK PK) | NOT NULL | Which job template |
 
 > Many-to-many mapping between bots and job templates.
@@ -136,7 +134,7 @@ sequenceDiagram
 | Column | Type | Nullable | Description |
 |--------|------|----------|-------------|
 | `Id` | `int` (PK) | NOT NULL | Auto-increment |
-| `BotId` | `int` (FK) | NOT NULL | Which bot received the command |
+| `TelegramBotId` | `int` (FK) | NOT NULL | Which bot received the command |
 | `JobType` | `nvarchar(100)` | NOT NULL | e.g. `KiteDataLoad` |
 | `TelegramId` | `bigint` | NOT NULL | Who triggered it |
 | `Parameters` | `nvarchar(2000)` | NULL | |
@@ -150,14 +148,14 @@ sequenceDiagram
 | Column | Type | Nullable | Description |
 |--------|------|----------|-------------|
 | `Id` | `int` (PK) | NOT NULL | Auto-increment |
-| `BotId` | `int` (FK) | NOT NULL | Which bot delivers the message |
+| `TelegramBotId` | `int` (FK) | NOT NULL | Which bot delivers the message |
 | `TelegramId` | `bigint` | NOT NULL | Recipient |
 | `Message` | `nvarchar(2000)` | NOT NULL | Notification text |
 | `Sent` | `bit` | NOT NULL | `0` = queued, `1` = delivered |
 | `CreatedAt` | `datetime2` | NOT NULL | |
 | `SentAt` | `datetime2` | NULL | |
 
-> BotBackGroundService polls every 15s for unsent messages.
+> TelegramBotService polls every 15s for unsent messages.
 
 ### OAuthProviders
 
@@ -215,17 +213,19 @@ sequenceDiagram
 
 ## Running the Application
 
-### 1. Start the Web API
+### 1. Start the Web API (must be first)
 ```bash
 dotnet run --project RemoteAssistant.AdminApi
 ```
-Starts on `http://localhost:5000`. Creates and migrates database tables on startup.
+Starts on `http://localhost:5000`. Creates database and all tables on startup. **Start this first** — other services depend on the schema it creates.
+
+> **Note:** On every startup, all tables are dropped and recreated. This is intentional for development — the database is always clean.
 
 ### 2. Start the Telegram Console Service
 ```bash
 dotnet run --project RemoteAssistant.TelegramConsoleService
 ```
-Polls the first active bot from `TelegramBots` every 15s. Delivers `UserNotifications`.
+Polls the latest bot from `TelegramBots` every 15s. Delivers `UserNotifications`.
 
 ### 3. Start the Job Management Console Service
 ```bash
@@ -306,7 +306,7 @@ Each bot is an independent domain — users register to each bot separately.
 2. Admin sees the request in the UI under the bot's expanded view
 3. Admin clicks **Approve** or **Reject**
 4. A `UserNotifications` row is queued
-5. BotBackGroundService delivers the notification via Telegram
+5. TelegramBotService delivers the notification via Telegram
 
 ### Admin Actions
 
@@ -356,7 +356,6 @@ In the UI, click **Jobs** on any bot to open the assignment panel. Check which j
 | `GET` | `/api/admin/bots` | Yes | List all bots |
 | `POST` | `/api/admin/bots` | Yes | Create bot |
 | `PUT` | `/api/admin/bots/{id}` | Yes | Update bot |
-| `PATCH` | `/api/admin/bots/{id}/toggle` | Yes | Enable/disable bot |
 | `DELETE` | `/api/admin/bots/{id}` | Yes | Delete bot |
 | `GET` | `/api/admin/bots/{id}/registrations` | Yes | List `UserMemberships` |
 | `GET` | `/api/admin/bots/{id}/pending` | Yes | List `RegistrationRequests` |

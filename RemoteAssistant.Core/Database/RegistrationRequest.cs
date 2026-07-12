@@ -10,7 +10,7 @@ public class RegistrationRequest
 
     public long TelegramId { get; set; }
 
-    public int BotId { get; set; }
+    public int TelegramBotId { get; set; }
 
     [MaxLength(50)]
     public string Status { get; set; } = "Pending";
@@ -22,5 +22,5 @@ public class RegistrationRequest
     [MaxLength(100)]
     public string? ReviewedBy { get; set; }
 
-    public TelegramBot Bot { get; set; } = null!;
+    public TelegramBot TelegramBot { get; set; } = null!;
 }

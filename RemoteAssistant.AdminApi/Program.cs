@@ -69,6 +69,14 @@ using (var scope = app.Services.CreateScope())
     {
         context.Database.EnsureCreated();
 
+        // Drop stale tables in reverse dependency order (dependents first)
+        var staleTables = new[] { "UserNotifications", "JobBotMappings", "JobRequests", "RegistrationRequests", "UserMemberships", "JobTemplates", "TelegramBots", "BotNotifications", "TelegramBotRegistrations", "UserRegistrations", "BotRegistrations", "BotJobTemplates", "BotJobAssignments", "PendingRegistrations", "Users", "BotJobs", "JobDefinitions", "Jobs" };
+        foreach (var tbl in staleTables)
+        {
+            try { context.Database.ExecuteSqlRaw($"IF OBJECT_ID('{tbl}', 'U') IS NOT NULL DROP TABLE [{tbl}];"); }
+            catch (Exception ex) { Console.WriteLine($"Could not drop {tbl}: {ex.Message}"); }
+        }
+
         context.Database.ExecuteSqlRaw("""
             IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'OAuthProviders')
             BEGIN
@@ -90,7 +98,6 @@ using (var scope = app.Services.CreateScope())
                     [Name] nvarchar(100) NOT NULL,
                     [Description] nvarchar(500) NULL,
                     [Token] nvarchar(500) NOT NULL,
-                    [IsActive] bit NOT NULL DEFAULT 1,
                     [CreatedAt] datetime2 NOT NULL,
                     [UpdatedAt] datetime2 NOT NULL,
                     CONSTRAINT [PK_TelegramBots] PRIMARY KEY ([Id])
@@ -98,25 +105,17 @@ using (var scope = app.Services.CreateScope())
             END
             """);
 
-        // Drop stale tables in reverse dependency order (dependents first)
-        var staleTables = new[] { "BotNotifications", "UserNotifications", "RegistrationRequests", "UserMemberships", "TelegramBotRegistrations", "UserRegistrations", "BotRegistrations", "BotJobTemplates", "BotJobAssignments", "PendingRegistrations", "Users", "BotJobs", "JobDefinitions", "Jobs" };
-        foreach (var tbl in staleTables)
-        {
-            try { context.Database.ExecuteSqlRaw($"IF OBJECT_ID('{tbl}', 'U') IS NOT NULL DROP TABLE [{tbl}];"); }
-            catch (Exception ex) { Console.WriteLine($"Could not drop {tbl}: {ex.Message}"); }
-        }
-
         context.Database.ExecuteSqlRaw("""
             IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'UserMemberships')
             BEGIN
                 CREATE TABLE [UserMemberships] (
                     [Id] int NOT NULL IDENTITY,
                     [TelegramId] bigint NOT NULL,
-                    [BotId] int NOT NULL,
+                    [TelegramBotId] int NOT NULL,
                     [RegisteredAt] datetime2 NOT NULL,
                     CONSTRAINT [PK_UserMemberships] PRIMARY KEY ([Id]),
-                    CONSTRAINT [FK_UserMemberships_TelegramBots_BotId] FOREIGN KEY ([BotId]) REFERENCES [TelegramBots] ([Id]) ON DELETE CASCADE,
-                    CONSTRAINT [IX_UserMemberships_TelegramId_BotId] UNIQUE ([TelegramId], [BotId])
+                    CONSTRAINT [FK_UserMemberships_TelegramBots_TelegramBotId] FOREIGN KEY ([TelegramBotId]) REFERENCES [TelegramBots] ([Id]) ON DELETE CASCADE,
+                    CONSTRAINT [IX_UserMemberships_TelegramId_TelegramBotId] UNIQUE ([TelegramId], [TelegramBotId])
                 );
             END
             """);
@@ -127,13 +126,13 @@ using (var scope = app.Services.CreateScope())
                 CREATE TABLE [RegistrationRequests] (
                     [Id] int NOT NULL IDENTITY,
                     [TelegramId] bigint NOT NULL,
-                    [BotId] int NOT NULL,
+                    [TelegramBotId] int NOT NULL,
                     [Status] nvarchar(50) NOT NULL DEFAULT 'Pending',
                     [RequestedAt] datetime2 NOT NULL,
                     [ReviewedAt] datetime2 NULL,
                     [ReviewedBy] nvarchar(100) NULL,
                     CONSTRAINT [PK_RegistrationRequests] PRIMARY KEY ([Id]),
-                    CONSTRAINT [FK_RegistrationRequests_TelegramBots_BotId] FOREIGN KEY ([BotId]) REFERENCES [TelegramBots] ([Id]) ON DELETE CASCADE
+                    CONSTRAINT [FK_RegistrationRequests_TelegramBots_TelegramBotId] FOREIGN KEY ([TelegramBotId]) REFERENCES [TelegramBots] ([Id]) ON DELETE CASCADE
                 );
             END
             """);
@@ -143,7 +142,7 @@ using (var scope = app.Services.CreateScope())
             BEGIN
                 CREATE TABLE [JobRequests] (
                     [Id] int NOT NULL IDENTITY,
-                    [BotId] int NOT NULL,
+                    [TelegramBotId] int NOT NULL,
                     [JobType] nvarchar(100) NOT NULL,
                     [TelegramId] bigint NOT NULL,
                     [Parameters] nvarchar(2000) NULL,
@@ -152,7 +151,7 @@ using (var scope = app.Services.CreateScope())
                     [CompletedAt] datetime2 NULL,
                     [Result] nvarchar(4000) NULL,
                     CONSTRAINT [PK_JobRequests] PRIMARY KEY ([Id]),
-                    CONSTRAINT [FK_JobRequests_TelegramBots_BotId] FOREIGN KEY ([BotId]) REFERENCES [TelegramBots] ([Id])
+                    CONSTRAINT [FK_JobRequests_TelegramBots_TelegramBotId] FOREIGN KEY ([TelegramBotId]) REFERENCES [TelegramBots] ([Id])
                 );
             END
             """);
@@ -165,7 +164,6 @@ using (var scope = app.Services.CreateScope())
                     [JobType] nvarchar(100) NOT NULL,
                     [Name] nvarchar(200) NOT NULL,
                     [Description] nvarchar(500) NULL,
-                    [IsActive] bit NOT NULL DEFAULT 1,
                     [CreatedAt] datetime2 NOT NULL,
                     [UpdatedAt] datetime2 NOT NULL,
                     CONSTRAINT [PK_JobTemplates] PRIMARY KEY ([Id])
@@ -180,10 +178,10 @@ using (var scope = app.Services.CreateScope())
             IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'JobBotMappings')
             BEGIN
                 CREATE TABLE [JobBotMappings] (
-                    [BotId] int NOT NULL,
+                    [TelegramBotId] int NOT NULL,
                     [JobTemplateId] int NOT NULL,
-                    CONSTRAINT [PK_JobBotMappings] PRIMARY KEY ([BotId], [JobTemplateId]),
-                    CONSTRAINT [FK_JobBotMappings_TelegramBots_BotId] FOREIGN KEY ([BotId]) REFERENCES [TelegramBots] ([Id]) ON DELETE CASCADE,
+                    CONSTRAINT [PK_JobBotMappings] PRIMARY KEY ([TelegramBotId], [JobTemplateId]),
+                    CONSTRAINT [FK_JobBotMappings_TelegramBots_TelegramBotId] FOREIGN KEY ([TelegramBotId]) REFERENCES [TelegramBots] ([Id]) ON DELETE CASCADE,
                     CONSTRAINT [FK_JobBotMappings_JobTemplates_JobTemplateId] FOREIGN KEY ([JobTemplateId]) REFERENCES [JobTemplates] ([Id]) ON DELETE CASCADE
                 );
             END
@@ -194,14 +192,14 @@ using (var scope = app.Services.CreateScope())
             BEGIN
                 CREATE TABLE [UserNotifications] (
                     [Id] int NOT NULL IDENTITY,
-                    [BotId] int NOT NULL,
+                    [TelegramBotId] int NOT NULL,
                     [TelegramId] bigint NOT NULL,
                     [Message] nvarchar(2000) NOT NULL,
                     [Sent] bit NOT NULL DEFAULT 0,
                     [CreatedAt] datetime2 NOT NULL,
                     [SentAt] datetime2 NULL,
                     CONSTRAINT [PK_UserNotifications] PRIMARY KEY ([Id]),
-                    CONSTRAINT [FK_UserNotifications_TelegramBots_BotId] FOREIGN KEY ([BotId]) REFERENCES [TelegramBots] ([Id])
+                    CONSTRAINT [FK_UserNotifications_TelegramBots_TelegramBotId] FOREIGN KEY ([TelegramBotId]) REFERENCES [TelegramBots] ([Id])
                 );
             END
             """);

@@ -51,7 +51,7 @@ public class JobExecutionService : BackgroundService
                             continue;
                         }
 
-                        _logger.LogInformation("Executing job {JobId} ({JobType}) for bot {BotId}", job.Id, job.JobType, job.BotId);
+                        _logger.LogInformation("Executing job {JobId} ({JobType}) for Telegram Bot {TelegramBotId}", job.Id, job.JobType, job.TelegramBotId);
 
                         var result = await executor.ExecuteAsync(job, stoppingToken);
 

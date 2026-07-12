@@ -10,9 +10,9 @@ public class UserMembership
 
     public long TelegramId { get; set; }
 
-    public int BotId { get; set; }
+    public int TelegramBotId { get; set; }
 
     public DateTime RegisteredAt { get; set; } = DateTime.UtcNow;
 
-    public TelegramBot Bot { get; set; } = null!;
+    public TelegramBot TelegramBot { get; set; } = null!;
 }
